@@ -25,3 +25,25 @@ This module is used as a part of GSPNet project.
 '''
 
 import psycopg2 as pg
+import pandas as pd
+
+conn = pg.connect(f'host=localhost dbname=taxi user=postgres')
+curr = conn.cursor()
+curr.execute('''
+                CREATE TABLE IF NOT EXISTS image_dirs (
+                    id varchar(32),
+                    time_interval  varchar(64),
+                    store_loc varchar(128),
+                    save_time timestamp,
+                    batch_seq varchar(16)
+                )
+                WITH (
+                OIDS = FALSE
+                )
+                TABLESPACE pg_default;
+                ALTER TABLE public.image_dirs
+                    OWNER to postgres;
+            ''')
+conn.commit()
+
+
