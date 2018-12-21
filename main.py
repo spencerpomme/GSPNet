@@ -112,9 +112,9 @@ def gen_one_snapshot(table, intervals, bounds):
     assert temp_snap.shape[0] == f_flayer.shape[0] + f_player.shape[0] + f_nlayer.shape[0]
 
 
-def gen_image(p_layer, n_layer, f_layer):
+def gen_image_set(p_layer, n_layer, f_layer):
     '''
-    Generate an image using given matrices.
+    Generate an image using given matrices, both the image and the seperate layer images.
     '''
     # create a snapshot:
     snapshot = np.zeros([img_size, img_size, 3], dtype='float64')
@@ -126,7 +126,7 @@ def gen_image(p_layer, n_layer, f_layer):
     # future-Red: 0
     for _, row in f_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1  # inplace increment 1 in numpy
+            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -154,7 +154,4 @@ def gen_image(p_layer, n_layer, f_layer):
     print(f'I max -> {snapshot[:,:,1].max()}')
     print(f'D max -> {snapshot[:,:,2].max()}')
 
-    # convert numpy array to a image:
-    tb = pd.DataFrame(snapshot[:, :, 0])
-
-    snapshot *= 255 // snapshot.max()
+    snapshot *= 255 // snapshot.max() # normalize
