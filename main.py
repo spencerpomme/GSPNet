@@ -165,6 +165,52 @@ def gen_image(p_layer, n_layer, f_layer):
     return image
 
 
+    def gen_tensor(p_layer, n_layer, f_layer):
+    '''
+    Generate a tensor using given matrices.
+    Params:
+        p_layer: matrix of past layer
+        n_layer: matrix of now layer
+        f_layer: matrix of future layer
+    Return:
+        A torch tensor.
+    '''
+    # create a snapshot
+    snapshot = np.zeros([img_size, img_size, 3], dtype='float64')
+
+    # unexpected zones
+    left_zones = set()
+
+    # future-Red: 0
+    for _, row in f_layer.iterrows():
+        try:
+            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1
+        except Exception as e:
+            left_zones.add(str(row['pulocationid']))
+            left_zones.add(str(row['dolocationid']))
+
+    # past-Green: 1
+    for _, row in p_layer.iterrows():
+        try:
+            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 1] += 1
+        except Exception as e:
+            left_zones.add(str(row['pulocationid']))
+            left_zones.add(str(row['dolocationid']))
+
+    # now-Blue: 2
+    for _, row in n_layer.iterrows():
+        try:
+            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 2] += 1
+        except Exception as e:
+            left_zones.add(str(row['pulocationid']))
+            left_zones.add(str(row['dolocationid']))
+
+    # normalize
+    snapshot *= 255 // snapshot.max()
+    snapshot = torch.from_numpy(snapshot)
+    return snapshot
+
+
 def timesplit(stp: str, etp: str, freq='10min'):
     '''
     Create a DatetimeIndx interval.
@@ -193,3 +239,39 @@ def timesplit(stp: str, etp: str, freq='10min'):
         return sub_intervals
     else:
         raise Exception('Provided time bound is of invalid format.')
+
+
+# Function that gets a specific layer of snapshot.
+def get_channel(image, layer:str):
+    '''
+    Get a layer of the snapshot.
+    Params:
+        image: PIL image
+        channel: one of R-F,G-P,B-N
+    Return:
+        single channel image
+    '''
+    assert layer in ['P', 'N', 'F']
+    namedict = {'P': 'G', 'N': 'B', 'F': 'R'}
+    chandict = {'R':0, 'G':1, 'B':2}
+    template = np.array(image)
+    chan = np.zeros([*template.shape], dtype='uint8')
+    chan[:,:,chandict[namedict[layer]]] = image.getchannel(namedict[layer])
+    chan = Image.fromarray(chan)
+    return chan
+
+
+def save_red(image):
+    '''
+    '''
+    pass
+
+def save_green(image):
+    '''
+    '''
+    pass
+
+def save_blue(image):
+    '''
+    '''
+    pass
