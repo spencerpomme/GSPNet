@@ -116,16 +116,23 @@ def gen_snap_layers(table, intervals, bounds):
     # Their count should add up to total trips caught
     assert temp_snap.shape[0] == f_layer.shape[0] + p_layer.shape[0] + n_layer.shape[0]
 
+    return p_layer, n_layer, f_layer
 
-def gen_image_set(p_layer, n_layer, f_layer):
+
+def gen_image(p_layer, n_layer, f_layer):
     '''
-    Generate an image using given matrices, both the image and the seperate layer images.
+    Generate an image using given matrices.
+    Params:
+        p_layer: matrix of past layer
+        n_layer: matrix of now layer
+        f_layer: matrix of future layer
+    Return:
+        A PIL image.
     '''
-    # create a snapshot:
+    # create a snapshot
     snapshot = np.zeros([img_size, img_size, 3], dtype='float64')
-    print(snapshot.shape)
-    print(snapshot[1, 2, 1])
 
+    # unexpected zones
     left_zones = set()
 
     # future-Red: 0
@@ -152,11 +159,38 @@ def gen_image_set(p_layer, n_layer, f_layer):
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
 
-    print(f'left_zones: {left_zones}')
-    print(f'left_zones length: {len(left_zones)}')
+    # normalize
+    snapshot *= 255 // snapshot.max()
+    snapshot = snapshot.astype('uint8')
+    image = Image.fromarray(fsnapshot)
+    return image
 
-    print(f'O max -> {snapshot[:,:,0].max()}')
-    print(f'I max -> {snapshot[:,:,1].max()}')
-    print(f'D max -> {snapshot[:,:,2].max()}')
 
-    snapshot *= 255 // snapshot.max() # normalize
+def timesplit(stp: str, etp: str, freq='10min'):
+    '''
+    Create a DatetimeIndx interval.
+    
+    Params:
+        stp: string, starting time point, first left bound
+        etp: string, ending time point, last right bound
+        freq: frequency, time interval unit of the splice operation
+    The stp and etp must of pattern "yyyy-mm-dd hh:mm:ss", otherwise exception will be raised.
+    
+    Return:
+        A list of time intervals tuples,each item is a tuple of two
+        interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
+        For example, a possible return could be [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
+                                                 (2017-01-01 00:10:00, 2017-01-01 00:20:00)]
+    '''
+    # Regex to match datetime string
+    pattern = re.compile(
+        '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
+    )
+
+    if pattern.match(stp) and pattern.match(etp):
+        time_bounds = pd.date_range(stp, etp, freq='10min')
+        sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
+        print(len(time_bounds), len(sub_intervals))
+        return sub_intervals
+    else:
+        raise Exception('Provided time bound is of invalid format.')
