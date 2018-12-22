@@ -158,7 +158,7 @@ def gen_image(p_layer, n_layer, f_layer):
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
 
-    # normalize
+    # simple normalize
     snapshot *= 255 // snapshot.max()
     snapshot = snapshot.astype('uint8')
     image = Image.fromarray(snapshot)
