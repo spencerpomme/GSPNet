@@ -263,15 +263,43 @@ def get_channel(image, layer:str):
 
 def save_red(image):
     '''
+    Save red layer of the given image.
     '''
-    pass
+    red = get_channel(image, 'F')
+    red_bright = image.getchannel('R')
+    return red, red_bright
+
 
 def save_green(image):
     '''
+    Save green layer of the given image.
     '''
-    pass
+    green = get_channel(image, 'F')
+    green_bright = image.getchannel('R')
+    return green, green_bright
+
 
 def save_blue(image):
     '''
+    Save blue layer of the given image.
     '''
-    pass
+    blue = get_channel(image, 'F')
+    blue_bright = image.getchannel('R')
+    return blue, blue_bright
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
