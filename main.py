@@ -162,7 +162,7 @@ def gen_image(p_layer, n_layer, f_layer):
     # normalize
     snapshot *= 255 // snapshot.max()
     snapshot = snapshot.astype('uint8')
-    image = Image.fromarray(fsnapshot)
+    image = Image.fromarray(snapshot)
     return image
 
 
@@ -188,9 +188,9 @@ def timesplit(stp: str, etp: str, freq='10min'):
     )
 
     if pattern.match(stp) and pattern.match(etp):
-        time_bounds = pd.date_range(stp, etp, freq='10min')
+        time_bounds = pd.date_range(stp, etp, freq=freq)
         sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
-        print(len(time_bounds), len(sub_intervals))
+        
         return sub_intervals
     else:
         raise Exception('Provided time bound is of invalid format.')
