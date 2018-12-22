@@ -56,19 +56,21 @@ assert len(real_id) == len(conv_id)
 mp = dict(zip(real_id, conv_id))
 
 
-# TODO: finish this! 2018/12/17
-def gen_snap_layers(table, intervals, bounds):
+def gen_snap_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
     Params:
         table:
-        intervals:
         bounds:
     Return:
         PNF layers, a list.
     '''
-    left = 72
-    right = 73
+    # left bound and right bound of time interval
+    assert type(bound) == tuple
+    left = bound[0]
+    right = bound[1]
+    
+    print(left, right)
 
     # convert dtype for entire table here:
     table['tpep_pickup_datetime'] = pd.to_datetime(table['tpep_pickup_datetime'])
@@ -84,13 +86,10 @@ def gen_snap_layers(table, intervals, bounds):
     # The condition of making snapshot should be:
     # at least one temporal end of a trip should be within the bounds:
     snap = sorted_table.loc[
-        ((sorted_table['tpep_pickup_datetime'] >= intervals[left]) &
-         (sorted_table['tpep_pickup_datetime'] < intervals[right])) |
-        ((sorted_table['tpep_dropoff_datetime'] >= intervals[left]) &
-         (sorted_table['tpep_dropoff_datetime'] < intervals[right]))]
-
-    # print(f'sorted_table.shape -> {sorted_table.shape}')
-    # print(f'snap.shape -> {snap.shape}')
+        ((sorted_table['tpep_pickup_datetime'] >= left) &
+         (sorted_table['tpep_pickup_datetime'] < right)) |
+        ((sorted_table['tpep_dropoff_datetime'] >= left) &
+         (sorted_table['tpep_dropoff_datetime'] < right))]
 
     # temp table to generate F,P,N layers
     # keep snap intact
@@ -102,16 +101,16 @@ def gen_snap_layers(table, intervals, bounds):
 
     # Use the interval to 'catch' corresponding trips.
     # future layer
-    f_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[right]) &
-                             (temp_snap['tpep_pickup_datetime'] >= intervals[left]) &
-                             (temp_snap['tpep_dropoff_datetime'] >= intervals[right])]
+    f_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < right) &
+                             (temp_snap['tpep_pickup_datetime'] >= left) &
+                             (temp_snap['tpep_dropoff_datetime'] >= right)]
     # past layer
-    p_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[left]) &
-                             (temp_snap['tpep_dropoff_datetime'] >= intervals[left]) &
-                             (temp_snap['tpep_dropoff_datetime'] < intervals[right])]
+    p_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < left) &
+                             (temp_snap['tpep_dropoff_datetime'] >= left) &
+                             (temp_snap['tpep_dropoff_datetime'] < right)]
     # now layer
-    n_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= intervals[left]) &
-                             (temp_snap['tpep_dropoff_datetime'] < intervals[right])]
+    n_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= left) &
+                             (temp_snap['tpep_dropoff_datetime'] < right)]
 
     # Their count should add up to total trips caught
     assert temp_snap.shape[0] == f_layer.shape[0] + p_layer.shape[0] + n_layer.shape[0]
@@ -190,7 +189,7 @@ def timesplit(stp: str, etp: str, freq='10min'):
     if pattern.match(stp) and pattern.match(etp):
         time_bounds = pd.date_range(stp, etp, freq=freq)
         sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
-        
+
         return sub_intervals
     else:
         raise Exception('Provided time bound is of invalid format.')
