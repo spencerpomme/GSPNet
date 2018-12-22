@@ -57,8 +57,15 @@ mp = dict(zip(real_id, conv_id))
 
 
 # TODO: finish this! 2018/12/17
-def gen_one_snapshot(table, intervals, bounds):
+def gen_snap_layers(table, intervals, bounds):
     '''
+    Generate Past layer, Now layer and Future layer for one snapshot.
+    Params:
+        table:
+        intervals:
+        bounds:
+    Return:
+        PNF layers, a list.
     '''
     left = 72
     right = 73
@@ -86,30 +93,28 @@ def gen_one_snapshot(table, intervals, bounds):
     # print(f'snap.shape -> {snap.shape}')
 
     # temp table to generate F,P,N layers
-    # No need to sort
+    # keep snap intact
     temp_snap = snap.loc[:, ['tripid',
                              'tpep_pickup_datetime',
                              'tpep_dropoff_datetime',
                              'pulocationid',
-                             'dolocationid']].sort_values(by=['tpep_pickup_datetime',
-                                                              'tpep_dropoff_datetime'])
+                             'dolocationid']]
 
-    # Check the condition of three layers above, if forgotten.
-    # Use the interval to 'catch' trips.
-    f_flayer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[right]) &
+    # Use the interval to 'catch' corresponding trips.
+    # future layer
+    f_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[right]) &
                              (temp_snap['tpep_pickup_datetime'] >= intervals[left]) &
                              (temp_snap['tpep_dropoff_datetime'] >= intervals[right])]
-
-    f_player = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[left]) &
+    # past layer
+    p_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < intervals[left]) &
                              (temp_snap['tpep_dropoff_datetime'] >= intervals[left]) &
                              (temp_snap['tpep_dropoff_datetime'] < intervals[right])]
-
-    f_nlayer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= intervals[left]) &
+    # now layer
+    n_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= intervals[left]) &
                              (temp_snap['tpep_dropoff_datetime'] < intervals[right])]
 
-
-    # Their shape should be the same
-    assert temp_snap.shape[0] == f_flayer.shape[0] + f_player.shape[0] + f_nlayer.shape[0]
+    # Their count should add up to total trips caught
+    assert temp_snap.shape[0] == f_layer.shape[0] + p_layer.shape[0] + n_layer.shape[0]
 
 
 def gen_image_set(p_layer, n_layer, f_layer):
