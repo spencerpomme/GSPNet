@@ -276,9 +276,27 @@ def save_blue(image):
     return blue, blue_bright
 
 
-def run():
+def image_run():
     '''
+    Run the image generation process.
     '''
-    pass
-
+    start = time.time()
+    print(f'Process started at {time.ctime()}')
+    print(f'Generating time intervals...')
+    timelist = timesplit('2017-03-01 00:00:00', '2017-04-01 00:00:00')
+    # convert dtype for entire table here:
+    print(f'Preparing table data...')
+    table = pd.read_csv('dataset/nytaxi_yellow_2017_mar.csv')
+    print(f'table shape: {table.shape}')
+    table['tpep_pickup_datetime'] = pd.to_datetime(table['tpep_pickup_datetime'])
+    table['tpep_dropoff_datetime'] = pd.to_datetime(table['tpep_dropoff_datetime'])
+    print('start generating...')
+    for i, bound in enumerate(timelist):
+        p_layer, n_layer, f_layer = gen_snap_layers(table, bound)
+        tensor = gen_tensor(p_layer, n_layer, f_layer)
+        torch.save(tensor, f'{data_path}\\nytaxi_yellow_2017_mar_d{i}.pt')
+        image = gen_image(p_layer, n_layer, f_layer)
+        vimage = image.resize((690,690)) # multiply by factor of 100
+        vimage.save(f'{visual_path}\\nytaxi_yellow_2017_mar_v{i}.jpg')
+    print(f'Image and tensor generation done in {time.time() - start :.2f} seconds.')
 
