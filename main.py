@@ -71,33 +71,25 @@ def gen_snap_layers(table, bound):
     right = bound[1]
     
     print(left, right)
-
-    # convert dtype for entire table here:
-    table['tpep_pickup_datetime'] = pd.to_datetime(table['tpep_pickup_datetime'])
-    table['tpep_dropoff_datetime'] = pd.to_datetime(table['tpep_dropoff_datetime'])
-
-    sorted_table = table.loc[:, ['tripid',
-                                 'tpep_pickup_datetime',
-                                 'tpep_dropoff_datetime',
-                                 'pulocationid',
-                                 'dolocationid']].sort_values(by=['tpep_pickup_datetime',
-                                                                  'tpep_dropoff_datetime'])
+    
+    # no need to sort table indeed?
+    projected_table = table.loc[:, ['tripid',
+                                    'tpep_pickup_datetime',
+                                    'tpep_dropoff_datetime',
+                                    'pulocationid',
+                                    'dolocationid']]
 
     # The condition of making snapshot should be:
     # at least one temporal end of a trip should be within the bounds:
-    snap = sorted_table.loc[
-        ((sorted_table['tpep_pickup_datetime'] >= left) &
-         (sorted_table['tpep_pickup_datetime'] < right)) |
-        ((sorted_table['tpep_dropoff_datetime'] >= left) &
-         (sorted_table['tpep_dropoff_datetime'] < right))]
+    snap = projected_table.loc[
+        ((projected_table['tpep_pickup_datetime'] >= left) &
+         (projected_table['tpep_pickup_datetime'] < right)) |
+        ((projected_table['tpep_dropoff_datetime'] >= left) &
+         (projected_table['tpep_dropoff_datetime'] < right))]
 
     # temp table to generate F,P,N layers
     # keep snap intact
-    temp_snap = snap.loc[:, ['tripid',
-                             'tpep_pickup_datetime',
-                             'tpep_dropoff_datetime',
-                             'pulocationid',
-                             'dolocationid']]
+    temp_snap = snap.copy()
 
     # Use the interval to 'catch' corresponding trips.
     # future layer
