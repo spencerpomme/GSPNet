@@ -276,18 +276,9 @@ def save_blue(image):
     return blue, blue_bright
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+def run():
+    '''
+    '''
+    pass
 
 
