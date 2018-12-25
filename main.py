@@ -41,19 +41,15 @@ from matplotlib import pyplot as plt
 table = pd.read_csv('dataset/nytaxi_yellow_2017_jan.csv')
 # Load zone lookup table
 zones = pd.read_csv('dataset/taxi_zone_lookup.csv')
+yellow_zone = zones.loc[zones['Borough'] == 'Manhattan']
 
-# create time interval
-intervals = pd.date_range('2017-01-01 00:00:00', '2017-02-01 00:00:00', freq='10min')
-
-# set image size
-y_zone = zones.loc[zones['Borough'] == 'Manhattan']
-img_size = y_zone.shape[0]
-
-# Before generating image, we have to map the zone id to a range from 0 to 54:
-real_id = list(map(str, list(y_zone.loc[:, 'LocationID'])))
+# very important globals:
+img_size = yellow_zone.shape[0]
+real_id = list(map(str, list(yellow_zone.loc[:,'LocationID'])))
 conv_id = [i for i in range(img_size)]
-assert len(real_id) == len(conv_id)
 mp = dict(zip(real_id, conv_id))
+
+assert len(real_id) == len(conv_id)
 
 
 def gen_snap_layers(table, bound):
