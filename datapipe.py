@@ -84,7 +84,9 @@ class DirFileLoader:
         print(f'\n\n========== Multi-thread Loading Start ==========')
         self._init_pool()
         s = time.time()
-        thread_list = [Thread(target=self.task_io, args=(i,)) for i in range(len(self.dirs))]
+        thread_list = [Thread(target=self.task_io, args=(i,))
+            for i in range(len(self.dirs))
+        ]
         for t in thread_list:
             t.start()
 
