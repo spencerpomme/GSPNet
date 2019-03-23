@@ -6,3 +6,6 @@
 *.csv
 *.csv
 *.csv
+*.pyc
+*.pkl
+*.exe
