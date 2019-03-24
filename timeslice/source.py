@@ -96,14 +96,7 @@ class CSVSource(Source):
         assert type(file) == str
         assert file[-4:] == '.csv'
         self.file = file
-        try:
-            # read csv file and format time related colums
-            self.table = pd.read_csv(self.file)
-            self.format_time_cols()
-
-        except Exception as e:
-            print(e)
-            print(f'Provided file {file} is not a valid file source.')
+        self.table = 'Please call instance.load() to initialize'
 
         self.shape = self.table.shape
         self.dtypes = self.table.dtypes
@@ -115,7 +108,22 @@ class CSVSource(Source):
         '''
         shape = self.table.shape
 
-        return f'CSV file source: {self.file} | Shape:  {shape[0].compute(), shape[1]}'
+        return f'CSV file source: {self.file} | Shape:  {shape[0], shape[1]}'
+
+
+    def load(self):
+        '''
+        Actually read in the .csv file. It better not to do the IO at
+        initialization time to get more flexibility.
+        '''
+        try:
+             # read csv file and format time related colums
+            self.table = pd.read_csv(self.file)
+            self.format_time_cols()
+
+        except Exception as e:
+            print(e)
+            print(f'Provided file {file} is not a valid file source.')
 
 
     
@@ -217,5 +225,7 @@ class DatabaseSource(Source):
                                ... ...
              (2017-01-01 01:10:00, 2017-01-01 01:20:00)]
         '''
-        pass
+        sql = "select * from cleaned_small_yellow_2017 where ;"
+        sub_table = pd.read_sql_query(sql, self.conn)
+        
 
