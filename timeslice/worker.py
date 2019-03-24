@@ -96,7 +96,7 @@ def gen_image(p_layer, n_layer, f_layer):
         A PIL image.
     '''
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
+    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int32')
 
     # unexpected zones
     left_zones = set()
@@ -126,7 +126,7 @@ def gen_image(p_layer, n_layer, f_layer):
             left_zones.add(str(row['dolocationid']))
 
     # simple normalize
-    snapshot *= 255 // snapshot.max()
+    snapshot *= (255 // snapshot.max())
     snapshot = snapshot.astype('uint8')
     image = Image.fromarray(snapshot)
     return image
@@ -146,13 +146,15 @@ def gen_tensor(p_layer, n_layer, f_layer):
     img_size = Worker.image_size
     snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
 
+    print(f'Just generated empty snapshot:\n {snapshot}')
+
     # unexpected zones
     left_zones = set()
 
     # future-Red: 0
     for _, row in f_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 0] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -160,7 +162,7 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # past-Green: 1
     for _, row in p_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 1] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 1] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -168,14 +170,21 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # now-Blue: 2
     for _, row in n_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 2] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 2] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
 
+    # set all empty
+    
     # normalize
-    snapshot *= 255 // snapshot.max()
+    # snapshot *= (255 // snapshot.max())
+    print(f'Before normalization:\n{snapshot}')
+    snapmax = snapshot.max()
+    snapshot = snapshot / np.linalg.norm(snapshot)
+    print(f'After normalization:\n{snapshot}\n max is: {snapmax}')
     snapshot = torch.from_numpy(snapshot)
+
     return snapshot
 
 
@@ -263,7 +272,7 @@ class Worker:
 
         ***************************| benchmark |****************************
         | A full run of entire 2017 data (yellow regions) is approximately |
-        | ?? seconds, which is extremely slow.                             |
+        | 100 minutes, which is extremely slow.                            |
         ********************************************************************
 
         '''
@@ -278,7 +287,7 @@ class Worker:
             # print(self.table.head())
             # combine three layers to one tensor(image)
             tensor = gen_tensor(p_layer, n_layer, f_layer)
-
+            print(tensor)
             # save image to given path
             # start time point and end time point of ENTIRE time interval
             stp = self.time_rule.stp

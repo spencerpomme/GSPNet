@@ -26,7 +26,6 @@ import pandas as pd
 import sqlalchemy
 import psycopg2
 import re
-from dask import dataframe as dd
 
 
 class Source:
@@ -34,7 +33,6 @@ class Source:
     Base class of data source.
 
     '''
-
     def __init__(self, table):
         '''
         Base init method, data should be directely convertible to tensors.
@@ -117,7 +115,7 @@ class CSVSource(Source):
         '''
         shape = self.table.shape
 
-        return f'CSV file source: {self.file} | Shape:  {shape[0], shape[1]}'
+        return f'CSV file source: {self.file} | Shape:  {shape[0].compute(), shape[1]}'
 
 
     
@@ -130,7 +128,7 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, host:str, dbname:str, user:str):
+    def __init__(self, host:str, dbname:str, user:str, tbname:str):
         '''
         Init method for database source.
 
@@ -143,16 +141,81 @@ class DatabaseSource(Source):
             host: database address
             dbname: database name
             user: (admin) user of the database
+            tbname: name of the table
         '''
         # self.conn = psycopg2.connect(f'host=localhost dbname=taxi user=postgres')
+
+        self.host = host
+        self.dbname = dbname
+        self.user = user
+        self.tbname = tbname
+
+        # connect to the database
         self.conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
         self.cur = conn.cursor()
-        self.table = pd.read_sql()
+
+        # initialize table
+        sql = "select * from cleaned_small_yellow_2017;"
+        self.table = pd.read_sql_query(sql, self.conn)
 
 
     def __repr__(self, verbose=False):
         '''
         Representation method for database source.
+
+        Args:
+            verbose: if true, then more information will be displayed
+        Returns:
+            Strings about the Source instance
+        '''
+        info = f'DatabaseSource\n\
+                  host: {self.host} | databse: {self.dbname} | table: {self.table}\n'
+
+        if verbose:
+            detail = f'Total rows: {self.count_rows()} | Columns: {self.get_columns()}'
+            info = info + detail
+
+        return info
+
+
+    def __len__(self):
+        '''
+        Returns the total number of rows ot self.table.
+        '''
+        sql = "select count(*) from cleaned_small_yellow_2017;"
+        temp_df = pd.read_sql_query(sql, self.conn)
+        
+        return temp_df.iloc[0][0]
+
+
+    def get_columns(self):
+        '''
+        Return the column names and types of self.table.
+
+        Returns:
+            column_info: a dictionary
         '''
         raise NotImplementedError
+
+
+    def subset(self, start:str, end:str):
+        '''
+        Make a subset from the table according to time.
+        This function is a part of the parallel IO of tensor generation.
+
+        Args:
+            start: starting time point of subset
+            end: ending time point of subset
+
+        Return:
+            sub_slice:
+            A list of time intervals tuples,each item is a tuple of two
+            interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
+            For example, a possible return could be:
+
+            [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
+                               ... ...
+             (2017-01-01 01:10:00, 2017-01-01 01:20:00)]
+        '''
+        pass
 

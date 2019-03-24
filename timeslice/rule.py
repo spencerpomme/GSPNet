@@ -51,8 +51,7 @@ class TimeSlice:
         '''
         Representation method for TimeSlice object
         '''
-        return f'TimeSlice {{self.stp}} -- {self.etp}: {{self.freq}}\
-                 Total number of intervals: {len(self.tslices)}'
+        return f'TimeSlice {self.stp} -- {self.etp} Interval: {self.freq}'
         
 
     def timesplit(self):
@@ -69,12 +68,20 @@ class TimeSlice:
 
         '''
         pattern = re.compile('^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$')
+
         if pattern.match(self.stp) and pattern.match(self.etp):
+
             time_bounds = pd.date_range(self.stp, self.etp, freq=self.freq)
             sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
             # print(len(time_bounds), len(sub_intervals))
 
             self.tslices = sub_intervals
-            # return sub_intervals
         else:
             raise Exception('Provided time bound is of invalid format.')
+
+
+    def get_slices(self):
+        '''
+        A convenient wrapper to return time slices.
+        '''
+        return self.tslices
