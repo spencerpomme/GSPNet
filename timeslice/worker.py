@@ -55,7 +55,7 @@ def gen_snap_layers(table, bound):
                                     'dolocationid']]
 
     # The condition of making snapshot should be:
-    # at least one temporal end of a trip should be within the bounds:
+    # AT LEAST ONE temporal end of a trip should be within the bounds:
     snap = projected_table.loc[
         ((projected_table['tpep_pickup_datetime'] >= left) &
          (projected_table['tpep_pickup_datetime'] < right)) |
