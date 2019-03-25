@@ -98,14 +98,17 @@ class CSVSource(Source):
         self.file = file
         self.table = 'Please call instance.load() to initialize'
 
-        self.shape = self.table.shape
-        self.dtypes = self.table.dtypes
+        self.shape = ''
+        self.dtypes = ''
 
 
     def __repr__(self):
         '''
          Representation method for csv source.
         '''
+        if isinstance(self.table, str):
+            return self.table
+
         shape = self.table.shape
 
         return f'CSV file source: {self.file} | Shape:  {shape[0], shape[1]}'
@@ -119,7 +122,9 @@ class CSVSource(Source):
         try:
              # read csv file and format time related colums
             self.table = pd.read_csv(self.file)
+            self.shape = self.table.shape
             self.format_time_cols()
+            self.dtypes = self.table.dtypes
 
         except Exception as e:
             print(e)
@@ -140,11 +145,6 @@ class DatabaseSource(Source):
         '''
         Init method for database source.
 
-        Every instance of this class should contain detailed information about
-        the connected database source, including:
-            (1) shape: rows and columns
-            (2) 
-
         Args:
             host: database address
             dbname: database name
@@ -159,11 +159,11 @@ class DatabaseSource(Source):
         self.tbname = tbname
 
         # connect to the database
-        self.conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
-        self.cur = conn.cursor()
+        self.conn = psycopg2.connect(f'host={self.host} dbname={self.dbname} user={self.user}')
+        self.cur = self.conn.cursor()
 
         # initialize table
-        sql = "select * from cleaned_small_yellow_2017;"
+        sql = f'select * from {self.tbname}'
         self.table = pd.read_sql_query(sql, self.conn)
 
 
