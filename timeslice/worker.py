@@ -146,8 +146,6 @@ def gen_tensor(p_layer, n_layer, f_layer):
     img_size = Worker.image_size
     snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
 
-    print(f'Just generated empty snapshot:\n {snapshot}')
-
     # unexpected zones
     left_zones = set()
 
@@ -178,11 +176,9 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # set all empty
     
     # normalize
-    # snapshot *= (255 // snapshot.max())
-    print(f'Before normalization:\n{snapshot}')
-    snapmax = snapshot.max()
-    snapshot = snapshot / np.linalg.norm(snapshot)
-    print(f'After normalization:\n{snapshot}\n max is: {snapmax}')
+    sm = snapshot.max()
+    # print(sm)
+    snapshot *= (255 // sm)
     snapshot = torch.from_numpy(snapshot)
 
     return snapshot
@@ -214,11 +210,14 @@ class Worker:
 
     # very important globals:
     yellow_zone = zones.loc[zones['Borough'] == 'Manhattan']
+    
     image_size = yellow_zone.shape[0]
 
     # create a mapping {'district_id_in_data_source': index from 0 to 68}
     real_id = list(map(str, list(yellow_zone.loc[:,'LocationID'])))
     conv_id = [i for i in range(image_size)]
+
+
     assert len(real_id) == len(conv_id)
     mp = dict(zip(real_id, conv_id))
 
@@ -236,6 +235,9 @@ class Worker:
                     or not
         '''
         self.source = source
+        
+        # load csv file here, because want to use multi-threading or coroutine
+        self.source.load()
         self.table = self.source.table
 
         # check if the destination dir exists.
@@ -287,7 +289,7 @@ class Worker:
             # print(self.table.head())
             # combine three layers to one tensor(image)
             tensor = gen_tensor(p_layer, n_layer, f_layer)
-            print(tensor)
+            # print(tensor)
             # save image to given path
             # start time point and end time point of ENTIRE time interval
             stp = self.time_rule.stp
