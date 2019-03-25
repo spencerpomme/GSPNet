@@ -84,8 +84,10 @@ class CSVSource(Source):
     '''
     Data source class when the data source is a .csv file.
 
+    The initialization of this instances of this class is postponed
+    to there user, the Worker class. This somehow twisted design
+    is for the good of utilizing parallel comptuing in tensor generation.
     '''
-
     def __init__(self, file: list):
         '''
         Init method for csv source.
@@ -165,6 +167,7 @@ class DatabaseSource(Source):
         # initialize table
         sql = f'select * from {self.tbname}'
         self.table = pd.read_sql_query(sql, self.conn)
+        self.total_rows = table.shape[0]
 
 
     def __repr__(self, verbose=False):
@@ -190,42 +193,72 @@ class DatabaseSource(Source):
         '''
         Returns the total number of rows ot self.table.
         '''
-        sql = "select count(*) from cleaned_small_yellow_2017;"
-        temp_df = pd.read_sql_query(sql, self.conn)
+        # sql = "select count(*) from cleaned_small_yellow_2017;"
+        # temp_df = pd.read_sql_query(sql, self.conn)
         
-        return temp_df.iloc[0][0]
+        return self.total_rows
 
 
     def get_columns(self):
         '''
         Return the column names and types of self.table.
 
+        A sure (but maybe slow) way would be directly construct
+        a query to get this info
+
         Returns:
             column_info: a dictionary
         '''
-        raise NotImplementedError
+        # construct a query to retrieve column meta data
+        sql = f"""
+            select column_name as name, data_type as dtype
+            from information_schema.columns
+            where table_schema = 'public' and 
+            table_name = '{self.tbname}';"""
+
+        info = pd.read_sql_query(sql, self.conn)
+
+        # create dictionary {'column_name': 'data_type'}
+        pair = list(zip(info['name'].to_list(), info['dtype'].to_list()))
+        column_info = {name: dtype for (name, dtype) in pair}
+
+        return column_info
 
 
-    def subset(self, start:str, end:str):
+    def subset(self, stp:str, etp:str):
         '''
         Make a subset from the table according to time.
         This function is a part of the parallel IO of tensor generation.
 
         Args:
-            start: starting time point of subset
-            end: ending time point of subset
+            stp: starting time point of subset
+            etp: ending time point of subset
+            both these two strings are of format "YYYY-MM-DD hh:mm:ss"
 
         Return:
-            sub_slice:
-            A list of time intervals tuples,each item is a tuple of two
-            interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
+            sub_slice: A list of time intervals tuples,each item is a tuple of
+            two interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
             For example, a possible return could be:
 
             [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
                                ... ...
              (2017-01-01 01:10:00, 2017-01-01 01:20:00)]
         '''
-        sql = "select * from cleaned_small_yellow_2017 where ;"
+        # regular expression that guarantee stp and etp are of right format
+        
+        pattern = re.compile('^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$')
+        
+        if pattern.match(self.stp) and pattern.match(self.etp):
+            sql = f"""
+                select * from 
+                cleaned_small_yellow_2017 where
+                tpep_dropoff_datetime > {stp} or
+                tpep_pickup_datetime <= {etp};"""
+        else:
+            raise Exception('Provided time bound is of invalid format.')
+
         sub_table = pd.read_sql_query(sql, self.conn)
+
+        return sub_table
         
 
