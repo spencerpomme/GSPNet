@@ -100,8 +100,8 @@ class CSVSource(Source):
         self.file = file
         self.table = 'Please call instance.load() to initialize'
 
-        self.shape = ''
-        self.dtypes = ''
+        self.shape = None
+        self.dtypes = None
 
 
     def __repr__(self):
@@ -143,7 +143,8 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, host:str, dbname:str, user:str, tbname:str):
+    def __init__(self, host:str='localhost', dbname:str='taxi',
+                 user:str='postgres', tbname:str='cleaned_small_yellow_2017_full'):
         '''
         Init method for database source.
 
@@ -167,7 +168,7 @@ class DatabaseSource(Source):
         # initialize table
         sql = f'select * from {self.tbname}'
         self.table = pd.read_sql_query(sql, self.conn)
-        self.total_rows = table.shape[0]
+        self.total_rows = self.table.shape[0]
 
 
     def __repr__(self, verbose=False):
@@ -241,7 +242,7 @@ class DatabaseSource(Source):
             For example, a possible return could be:
 
             [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
-                               ... ...
+                               ......
              (2017-01-01 01:10:00, 2017-01-01 01:20:00)]
         '''
         # regular expression that guarantee stp and etp are of right format
@@ -260,5 +261,16 @@ class DatabaseSource(Source):
         sub_table = pd.read_sql_query(sql, self.conn)
 
         return sub_table
+
+
+    def devide_for_parallel(self, table, n:int):
+        '''
+        Devide a table into n adjacent sub tables.
+
+        Args:
+            table: A table connector
+            n: number of sub tables
+        '''
+        raise NotImplementedError
         
 
