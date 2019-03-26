@@ -139,6 +139,7 @@ def gen_tensor(p_layer, n_layer, f_layer):
         p_layer: matrix of past layer
         n_layer: matrix of now layer
         f_layer: matrix of future layer
+        
     Return:
         A torch tensor.
     '''
