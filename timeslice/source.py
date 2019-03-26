@@ -27,6 +27,8 @@ import sqlalchemy
 import psycopg2
 import re
 
+from dask import dataframe as dd
+
 
 class Source:
     '''
@@ -115,6 +117,12 @@ class CSVSource(Source):
 
         return f'CSV file source: {self.file} | Shape:  {shape[0], shape[1]}'
 
+    
+    def __len__(self):
+        '''
+        '''
+        pass
+
 
     def load(self):
         '''
@@ -143,16 +151,16 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, host:str='localhost', dbname:str='taxi',
-                 user:str='postgres', tbname:str='cleaned_small_yellow_2017_full'):
+    def __init__(self, tbname, host:str='localhost', dbname:str='taxi',
+                 user:str='postgres'):
         '''
         Init method for database source.
 
         Args:
+            tbname: name of the table
             host: database address
             dbname: database name
             user: (admin) user of the database
-            tbname: name of the table
         '''
         # self.conn = psycopg2.connect(f'host=localhost dbname=taxi user=postgres')
 
@@ -198,6 +206,12 @@ class DatabaseSource(Source):
         # temp_df = pd.read_sql_query(sql, self.conn)
         
         return self.total_rows
+
+
+    def load(self):
+        '''
+        '''
+        pass
 
 
     def get_columns(self):
