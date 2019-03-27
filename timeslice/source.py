@@ -100,7 +100,7 @@ class CSVSource(Source):
         assert type(file) == str
         assert file[-4:] == '.csv'
         self.file = file
-        self.table = 'Please call instance.load() to initialize'
+        self.table = None
 
         self.shape = None
         self.dtypes = None
@@ -120,9 +120,18 @@ class CSVSource(Source):
     
     def __len__(self):
         '''
+        Returns the total number of rows ot self.table.
         '''
-        pass
+        try:
+            total_rows = self.table.shape[0]
+        except Exception as e:
+            print(e)
+            print('The actual data is not loaded yet. It is suggested to call "load" method at\
+                   worker side.')
+            total_rows = 0
 
+        return total_rows
+        
 
     def load(self):
         '''
@@ -152,7 +161,7 @@ class DatabaseSource(Source):
     '''
 
     def __init__(self, tbname, host:str='localhost', dbname:str='taxi',
-                 user:str='postgres'):
+                 user:str='postgres', concurrent:bool=True):
         '''
         Init method for database source.
 
@@ -161,22 +170,25 @@ class DatabaseSource(Source):
             host: database address
             dbname: database name
             user: (admin) user of the database
+            concurrent: decide whether to divide a big table into small one and
+                        load concurrently or not.
         '''
-        # self.conn = psycopg2.connect(f'host=localhost dbname=taxi user=postgres')
+        # host=localhost dbname=taxi user=postgres
 
         self.host = host
         self.dbname = dbname
         self.user = user
         self.tbname = tbname
+        self.concurrent = concurrent
 
         # connect to the database
         self.conn = psycopg2.connect(f'host={self.host} dbname={self.dbname} user={self.user}')
         self.cur = self.conn.cursor()
 
-        # initialize table
-        sql = f'select * from {self.tbname}'
-        self.table = pd.read_sql_query(sql, self.conn)
-        self.total_rows = self.table.shape[0]
+        # unified container: table_pool
+        self.table_pool = []
+        
+        self.total_rows = self.__sumrows(self.table_pool)
 
 
     def __repr__(self, verbose=False):
@@ -207,11 +219,27 @@ class DatabaseSource(Source):
         
         return self.total_rows
 
+    
+    def __sumrows(self):
+        '''
+        Sum up sub table rows in self.table_pool.
+        '''
+        raise NotImplementedError
+
 
     def load(self):
         '''
+        Actually read in the .csv file. It better not to do the IO at
+        initialization time to get more flexibility.
         '''
-        pass
+        sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
+                from cleaned_small_yellow_2017_full \
+                where tpep_pickup_datetime >= {} and \
+                      tpep_dropoff_datetime < {};"
+        if self.concurrent:
+            self.tbname
+        self.table = pd.read_sql_query(sql, self.conn)
+        self.total_rows = self.table.shape[0]
 
 
     def get_columns(self):
@@ -277,13 +305,28 @@ class DatabaseSource(Source):
         return sub_table
 
 
-    def devide_for_parallel(self, table, n:int):
+    def weekly_parallel(self, table):
         '''
-        Devide a table into n adjacent sub tables.
+        A convenient wrapper of concurrent load using a week as deviding unit.
 
         Args:
             table: A table connector
-            n: number of sub tables
+
+        Returns:
+            table_pool: A pool of sub tables
+        '''
+        raise NotImplementedError
+
+
+    def daily_parallel(self, table):
+        '''
+        A convenient wrapper of concurrent load using a day as deviding unit.
+
+        Args:
+            table: A table connector
+
+        Returns:
+            table_pool: A pool of sub tables
         '''
         raise NotImplementedError
         
