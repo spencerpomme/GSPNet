@@ -319,9 +319,15 @@ class Worker:
                 vimage.save(image_path)
 
 
-    def parallel_gen(self, slaves=0):
+    def parallel_gen(self, slaves:int=0):
         '''
         Generate tonsors in parrele using multiprocessing.
+
+        The tables passed from Source instance should be applied generation
+        function in parallel.
+
+        Args:
+            slaves: number of processes. 
         '''
         raise NotImplementedError
         
