@@ -196,6 +196,9 @@ class DatabaseSource(Source):
         self.big_bound = (rule.stp, rule.etp)
         self.time_freq = rule.freq
 
+        # datetime format checking pattern
+        self.pattern = rule.__class__.pattern
+
 
 
     def __repr__(self, verbose=False):
@@ -266,32 +269,84 @@ class DatabaseSource(Source):
         Actually read in the .csv file. It better not to do the IO at
         initialization time to get more flexibility.
         '''
-        sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
-                from cleaned_small_yellow_2017_full \
-                where tpep_pickup_datetime >= {self.big_bound[0]} and \
-                      tpep_dropoff_datetime < {self.big_bound[1]};"  # <- this sql string is incomplete
-
         if self.concurrent:
             self.tbname
+        else:
+            sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
+                    from cleaned_small_yellow_2017_full \
+                    where tpep_pickup_datetime >= {self.big_bound[0]} and \
+                          tpep_dropoff_datetime < {self.big_bound[1]};"
 
-        self.table = pd.read_sql_query(sql, self.conn)
-        self.total_rows = self.table.shape[0]
+        
+            self.table = pd.read_sql_query(sql, self.conn)
+            self.total_rows = self.table.shape[0]
 
     
-    def _concurrent_split(self, granularity:str='1W'):
+    def _concurrent_split(self, granularity:str='24h'):
         '''
         Saperate a query that returns a potentially large table into several
         sub queries and then do them concurrently. 
         
         For example, when set granularity to 1 week, then if the big_bound is
-        an period of 1 month, then the query will be divided into 4 sub queries,
-        each returns a data of 1 week.
+        an period of 1 month, then the query will be divided into 30 sub queries,
+        each returns a data of 1 day.
 
         Args:
             granularity: minimum time unit
 
         Returns:
-            sub_bounds: divide sub time bounds, used to create sub queries
+            queries: a list containing sql string initialized with sub time bounds
+        '''
+        subs = pd.date_range(self.big_bound[0], self.big_bound[1], freq=granularity)
+        queries = []
+
+        # create sub interval queries
+        for sub in subs:
+            stp, etp = list(map(str, sub))
+            queries.append(self._construct_sql(stp, etp))
+
+        return queries
+
+    
+    def _construct_sql(self, stp:str, etp:str):
+        '''
+        A private helper function to construct sql query, called another
+        helper function _construct_split.
+
+        Args:
+            stp: datetime string, starting time point of a concurrent unit
+            etp: datatime string, end time point of a concurrent unit
+
+        Returns:
+            sql: a constructed query string
+        '''
+        pattern = self.pattern
+        assert (pattern.match(self.stp) and pattern.match(self.etp)) == True
+
+        return f"select tripid,\
+                 tpep_pickup_datetime,\
+                 tpep_dropoff_datetime,\
+                 pulocationid,\
+                 dolocationid from cleaned_small_yellow_2017_full \
+                 where tpep_pickup_datetime >= {stp} and \
+                       tpep_dropoff_datetime < {etp};"
+
+    
+    def _process_granularity(self, stp:str, etp:str, freq:str):
+        '''
+        Function to divide a table according freq (the concurrent time unit).
+
+        The main problem solved by this function is alignment and round up of
+        weeks when dividing a month or year into weekly-sub-tables. The arguments
+        of this function is kept the same as pandas.date_range function.
+
+        Args:
+            stp: datetime string, starting time point of a concurrent unit
+            etp: datatime string, end time point of a concurrent unit
+            freq: concurrent time unit, almost always '1W' (a week)
+
+        Returns:
+            subs: DataTimeIndex object, i.e. return type of pandas.date_range
         '''
         raise NotImplementedError
 
@@ -316,15 +371,12 @@ class DatabaseSource(Source):
              (2017-01-01 01:10:00, 2017-01-01 01:20:00)]
         '''
         # regular expression that guarantee stp and etp are of right format
-        
-        pattern = re.compile(
-            '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
-        )
+        pattern = self.pattern
         
         if pattern.match(self.stp) and pattern.match(self.etp):
             sql = f"""
-                    select * from 
-                    cleaned_small_yellow_2017 where
+                    select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid from 
+                    cleaned_small_yellow_2017_full where
                     tpep_dropoff_datetime > {stp} or
                     tpep_pickup_datetime <= {etp};
                     """
