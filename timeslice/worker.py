@@ -280,8 +280,7 @@ class Worker:
 
         '''
         # split time using rule object's timesplit method
-        # the reason why do it here is for concentrating all time consuming
-        # tasks in one function.
+        # the reason why do it here is not to pass around big objects
         self.time_rule.timesplit()
 
         for i, bound in enumerate(self.time_rule.tslices):
@@ -302,7 +301,7 @@ class Worker:
 
             # save tensor to path
             tensor_path = os.path.abspath(
-                self.tensor_dir + f'/{stp}-{etp}-{i}-{lbd}-{rbd}.pkl'.replace(' ', '_').replace(':',''))
+                self.tensor_dir + f'/{i}-{lbd}-{rbd}-{stp}-{etp}.pkl'.replace(' ', '_').replace(':',''))
 
             # save method 1 => time for 1 day is: 7m 47s
             torch.save(tensor, tensor_path)
@@ -310,7 +309,7 @@ class Worker:
             # if viz is true, then save images to separate folder
             if self.viz:
                 image_path = os.path.abspath(
-                    self.visual_dir + f'/{stp}-{etp}-{i}-{lbd}-{rbd}.jpg'.replace(' ', '_').replace(':',''))
+                    self.visual_dir + f'/{i}-{lbd}-{rbd}-{stp}-{etp}-.jpg'.replace(' ', '_').replace(':',''))
                 
                 image = gen_image(p_layer, n_layer, f_layer)
 
