@@ -52,19 +52,6 @@ class Source:
         return f'Source: {self.__class__} of type {type(data)}'
 
 
-    def head(self, first_n_rows: int):
-        '''
-        Wrapper of table head method.
-
-        Args:
-            first_n_rows: first n rows of the table
-        
-        Returns:
-            head object
-        '''
-        return self.table.head(first_n_rows)
-
-
     def describe(self):
         '''
         Wrapper of table describe method.
@@ -82,6 +69,7 @@ class Source:
             self.table['tpep_dropoff_datetime'])
 
 
+# Data source: .csv file
 class CSVSource(Source):
     '''
     Data source class when the data source is a .csv file.
@@ -149,8 +137,21 @@ class CSVSource(Source):
             print(e)
             print(f'Provided file {file} is not a valid file source.')
 
-
     
+    def head(self, first_n_rows: int):
+        '''
+        Wrapper of table head method.
+
+        Args:
+            first_n_rows: first n rows of the table
+        
+        Returns:
+            head object
+        '''
+        return self.table.head(first_n_rows)
+
+
+# Data source: relational database
 class DatabaseSource(Source):
     '''
     Data source class when the data source is a relational database.
@@ -160,21 +161,23 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, tbname, host:str='localhost', dbname:str='taxi',
+    def __init__(self, tbname, rule, host:str='localhost', dbname:str='taxi',
                  user:str='postgres', concurrent:bool=True):
         '''
         Init method for database source.
 
         Args:
             tbname: name of the table
+            rule: time rule object
             host: database address
             dbname: database name
             user: (admin) user of the database
             concurrent: decide whether to divide a big table into small one and
                         load concurrently or not.
+        
+        Example:
+            host="localhost" dbname="taxi" user="postgres"
         '''
-        # host=localhost dbname=taxi user=postgres
-
         self.host = host
         self.dbname = dbname
         self.user = user
@@ -187,8 +190,12 @@ class DatabaseSource(Source):
 
         # unified container: table_pool
         self.table_pool = []
+        self.total_rows = self._sumrows()
         
-        self.total_rows = self.__sumrows(self.table_pool)
+        # time rule attributes for concurrent load strategy:
+        self.big_bound = (rule.stp, rule.etp)
+        self.time_freq = rule.freq
+
 
 
     def __repr__(self, verbose=False):
@@ -197,6 +204,7 @@ class DatabaseSource(Source):
 
         Args:
             verbose: if true, then more information will be displayed
+
         Returns:
             Strings about the Source instance
         '''
@@ -204,7 +212,7 @@ class DatabaseSource(Source):
                   host: {self.host} | databse: {self.dbname} | table: {self.table}\n'
 
         if verbose:
-            detail = f'Total rows: {self.count_rows()} | Columns: {self.get_columns()}'
+            detail = f'Total rows: {self._sumrows()} | Columns: {self._get_columns()}'
             info = info + detail
 
         return info
@@ -220,29 +228,14 @@ class DatabaseSource(Source):
         return self.total_rows
 
     
-    def __sumrows(self):
+    def _sumrows(self):
         '''
         Sum up sub table rows in self.table_pool.
         '''
         raise NotImplementedError
 
 
-    def load(self):
-        '''
-        Actually read in the .csv file. It better not to do the IO at
-        initialization time to get more flexibility.
-        '''
-        sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
-                from cleaned_small_yellow_2017_full \
-                where tpep_pickup_datetime >= {} and \
-                      tpep_dropoff_datetime < {};"
-        if self.concurrent:
-            self.tbname
-        self.table = pd.read_sql_query(sql, self.conn)
-        self.total_rows = self.table.shape[0]
-
-
-    def get_columns(self):
+    def _get_columns(self):
         '''
         Return the column names and types of self.table.
 
@@ -268,6 +261,41 @@ class DatabaseSource(Source):
         return column_info
 
 
+    def load(self):
+        '''
+        Actually read in the .csv file. It better not to do the IO at
+        initialization time to get more flexibility.
+        '''
+        sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
+                from cleaned_small_yellow_2017_full \
+                where tpep_pickup_datetime >= {self.big_bound[0]} and \
+                      tpep_dropoff_datetime < {self.big_bound[1]};"  # <- this sql string is incomplete
+
+        if self.concurrent:
+            self.tbname
+
+        self.table = pd.read_sql_query(sql, self.conn)
+        self.total_rows = self.table.shape[0]
+
+    
+    def _concurrent_split(self, granularity:str='1W'):
+        '''
+        Saperate a query that returns a potentially large table into several
+        sub queries and then do them concurrently. 
+        
+        For example, when set granularity to 1 week, then if the big_bound is
+        an period of 1 month, then the query will be divided into 4 sub queries,
+        each returns a data of 1 week.
+
+        Args:
+            granularity: minimum time unit
+
+        Returns:
+            sub_bounds: divide sub time bounds, used to create sub queries
+        '''
+        raise NotImplementedError
+
+
     def subset(self, stp:str, etp:str):
         '''
         Make a subset from the table according to time.
@@ -289,14 +317,17 @@ class DatabaseSource(Source):
         '''
         # regular expression that guarantee stp and etp are of right format
         
-        pattern = re.compile('^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$')
+        pattern = re.compile(
+            '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
+        )
         
         if pattern.match(self.stp) and pattern.match(self.etp):
             sql = f"""
-                select * from 
-                cleaned_small_yellow_2017 where
-                tpep_dropoff_datetime > {stp} or
-                tpep_pickup_datetime <= {etp};"""
+                    select * from 
+                    cleaned_small_yellow_2017 where
+                    tpep_dropoff_datetime > {stp} or
+                    tpep_pickup_datetime <= {etp};
+                    """
         else:
             raise Exception('Provided time bound is of invalid format.')
 
