@@ -30,6 +30,9 @@ class TimeSlice:
     Create an array of time intervals.
 
     '''
+    pattern = re.compile(
+            '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
+        )
     def __init__(self, stp:str, etp:str, freq='10min'):
         '''
         Init method for TimeSlice object
@@ -96,9 +99,7 @@ class TimeSlice:
             [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
              (2017-01-01 00:10:00, 2017-01-01 00:20:00)]
         '''
-        pattern = re.compile(
-            '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
-        )
+        pattern = TimeSlice.pattern
 
         if pattern.match(self.stp) and pattern.match(self.etp):
 
