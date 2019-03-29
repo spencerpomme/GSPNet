@@ -105,7 +105,6 @@ class TimeSlice:
 
             time_bounds = pd.date_range(self.stp, self.etp, freq=self.freq)
             sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
-            # print(len(time_bounds), len(sub_intervals))
 
             self.tslices = sub_intervals
         else:
