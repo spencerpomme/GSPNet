@@ -27,7 +27,7 @@ import sqlalchemy
 import psycopg2
 import re
 
-from dask import dataframe as dd
+from threading import Thread
 
 
 class Source:
@@ -188,16 +188,20 @@ class DatabaseSource(Source):
         self.conn = psycopg2.connect(f'host={self.host} dbname={self.dbname} user={self.user}')
         self.cur = self.conn.cursor()
 
-        # unified container: table_pool
-        self.table_pool = []
-        self.total_rows = self._sumrows()
-        
         # time rule attributes for concurrent load strategy:
         self.big_bound = (rule.stp, rule.etp)
         self.time_freq = rule.freq
 
         # datetime format checking pattern
         self.pattern = rule.__class__.pattern
+        print(self.pattern)
+
+        # unified container: table_pool
+        self.table_pool = []
+        self.queries = self._concurrent_split()
+
+        # data source info
+        # self.total_rows = self._sumrows()
 
 
 
@@ -229,6 +233,31 @@ class DatabaseSource(Source):
         # temp_df = pd.read_sql_query(sql, self.conn)
         
         return self.total_rows
+
+
+    def load(self):
+        '''
+        Actually read in the .csv file. It better not to do the IO at
+        initialization time to get more flexibility.
+        '''
+        if self.concurrent:
+            self.queries = self._concurrent_split()
+        else:
+            sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
+                    from cleaned_small_yellow_2017_full \
+                    where tpep_pickup_datetime >= {self.big_bound[0]} and \
+                          tpep_dropoff_datetime < {self.big_bound[1]};"
+
+        
+            self.table = pd.read_sql_query(sql, self.conn)
+            self.total_rows = self.table.shape[0]
+            self.table_pool.append(self.table)
+
+    
+    def _load(string):
+        '''
+        '''
+        table = pd.read_sql_query(string)
 
     
     def _sumrows(self):
@@ -263,24 +292,6 @@ class DatabaseSource(Source):
 
         return column_info
 
-
-    def load(self):
-        '''
-        Actually read in the .csv file. It better not to do the IO at
-        initialization time to get more flexibility.
-        '''
-        if self.concurrent:
-            self.tbname
-        else:
-            sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
-                    from cleaned_small_yellow_2017_full \
-                    where tpep_pickup_datetime >= {self.big_bound[0]} and \
-                          tpep_dropoff_datetime < {self.big_bound[1]};"
-
-        
-            self.table = pd.read_sql_query(sql, self.conn)
-            self.total_rows = self.table.shape[0]
-
     
     def _concurrent_split(self, granularity:str='24h'):
         '''
@@ -297,13 +308,14 @@ class DatabaseSource(Source):
         Returns:
             queries: a list containing sql string initialized with sub time bounds
         '''
-        subs = pd.date_range(self.big_bound[0], self.big_bound[1], freq=granularity)
-        queries = []
+        bounds = pd.date_range(self.big_bound[0], self.big_bound[1], freq=granularity)
+        subs = list(zip(bounds[:-1], bounds[1:]))
+        queries = {}
 
         # create sub interval queries
-        for sub in subs:
+        for i, sub in enumerate(subs):
             stp, etp = list(map(str, sub))
-            queries.append(self._construct_sql(stp, etp))
+            queries[i] = self._construct_sql(stp, etp)
 
         return queries
 
@@ -321,15 +333,11 @@ class DatabaseSource(Source):
             sql: a constructed query string
         '''
         pattern = self.pattern
-        assert (pattern.match(self.stp) and pattern.match(self.etp)) == True
+        assert pattern.match(self.stp) and pattern.match(self.etp)
 
-        return f"select tripid,\
-                 tpep_pickup_datetime,\
-                 tpep_dropoff_datetime,\
-                 pulocationid,\
-                 dolocationid from cleaned_small_yellow_2017_full \
-                 where tpep_pickup_datetime >= {stp} and \
-                       tpep_dropoff_datetime < {etp};"
+        return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid "
+                 "from cleaned_small_yellow_2017_full "
+                f"where tpep_pickup_datetime >= {stp} and tpep_dropoff_datetime < {etp};")
 
     
     def _process_granularity(self, stp:str, etp:str, freq:str):
@@ -343,12 +351,34 @@ class DatabaseSource(Source):
         Args:
             stp: datetime string, starting time point of a concurrent unit
             etp: datatime string, end time point of a concurrent unit
-            freq: concurrent time unit, almost always '1W' (a week)
+            freq: frequency, time interval unit of the splice operation
+                  The supported frequency units are:
+                  
+                    Alias	    Description
+                    B	        business day frequency
+                    C	        custom business day frequency
+                    D	        calendar day frequency
+                    W	        weekly frequency
+                    M	        month end frequency
+                    SM	        semi-month end frequency (15th and end of month)
+                    BM	        business month end frequency
+                    CBM	        custom business month end frequency
+                    MS	        month start frequency
+                    SMS	        semi-month start frequency (1st and 15th)
+                    BMS	        business month start frequency
+                    CBMS	    custom business month start frequency
+                    H	        hourly frequency
+                    
+        The stp and etp must of pattern "yyyy-mm-dd hh:mm:ss", otherwise
+        exception will be raised.
 
         Returns:
             subs: DataTimeIndex object, i.e. return type of pandas.date_range
+
+        Raises:
+            AssertionError
         '''
-        raise NotImplementedError
+        raise NotImplementedError # this function is not currently needed
 
 
     def subset(self, stp:str, etp:str):
@@ -398,7 +428,7 @@ class DatabaseSource(Source):
         Returns:
             table_pool: A pool of sub tables
         '''
-        raise NotImplementedError
+        return self._
 
 
     def daily_parallel(self, table):
