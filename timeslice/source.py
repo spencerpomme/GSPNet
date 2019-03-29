@@ -29,6 +29,31 @@ import re
 
 from threading import Thread
 
+# helper functions
+# define function to return weekly-sliced time intervals
+def safe_weekly_divide(stp:str, etp:str):
+    '''
+    Return a safely rounded split of timeslices decided by "1W-MON".
+
+    Args:
+        stp: datetime string, starting time point of a concurrent unit
+        etp: datatime string, end time point of a concurrent unit
+
+    Returns:
+        subs: a list of (Timestamp, Timestamp) pairs
+    '''    
+    bounds = pd.date_range(stp, etp, freq='1W-MON')
+    print(bounds[0], bounds[-1])
+    head_round = tail_round = None
+    if bounds[0] != stp:
+        head_round = (pd.Timestamp(stp), pd.Timestamp(bounds[0]))
+    if bounds[-1] != etp:
+        tail_round = (pd.Timestamp(bounds[-1]), pd.Timestamp(etp))
+    print('\n\n\n')
+    subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
+    
+    return subs
+
 
 class Source:
     '''
@@ -194,7 +219,6 @@ class DatabaseSource(Source):
 
         # datetime format checking pattern
         self.pattern = rule.__class__.pattern
-        print(self.pattern)
 
         # unified container: table_pool
         self.table_pool = []
@@ -242,11 +266,12 @@ class DatabaseSource(Source):
         '''
         if self.concurrent:
             self.queries = self._concurrent_split()
+
         else:
             sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
                     from cleaned_small_yellow_2017_full \
-                    where tpep_pickup_datetime >= {self.big_bound[0]} and \
-                          tpep_dropoff_datetime < {self.big_bound[1]};"
+                    where tpep_pickup_datetime >= '{self.big_bound[0]}' and \
+                          tpep_dropoff_datetime < '{self.big_bound[1]}';"
 
         
             self.table = pd.read_sql_query(sql, self.conn)
@@ -333,11 +358,11 @@ class DatabaseSource(Source):
             sql: a constructed query string
         '''
         pattern = self.pattern
-        assert pattern.match(self.stp) and pattern.match(self.etp)
+        assert pattern.match(stp) and pattern.match(etp)
 
         return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid "
                  "from cleaned_small_yellow_2017_full "
-                f"where tpep_pickup_datetime >= {stp} and tpep_dropoff_datetime < {etp};")
+                f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
 
     
     def _process_granularity(self, stp:str, etp:str, freq:str):
@@ -407,8 +432,8 @@ class DatabaseSource(Source):
             sql = f"""
                     select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid from 
                     cleaned_small_yellow_2017_full where
-                    tpep_dropoff_datetime > {stp} or
-                    tpep_pickup_datetime <= {etp};
+                    tpep_dropoff_datetime > '{stp}' or
+                    tpep_pickup_datetime <= '{etp}';
                     """
         else:
             raise Exception('Provided time bound is of invalid format.')
