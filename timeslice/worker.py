@@ -239,7 +239,7 @@ class Worker:
         
         # load csv file here, because want to use multi-threading or coroutine
         self.source.load()
-        self.table = self.source.table
+        self.tables = self.source.table_pool
 
         # check if the destination dir exists.
         if not os.path.exists(destin):
