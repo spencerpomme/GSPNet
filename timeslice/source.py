@@ -29,33 +29,7 @@ import re
 
 from threading import Thread
 from multiprocessing import cpu_count
-
-
-# helper functions
-# define function to return weekly-sliced time intervals
-def safe_weekly_divide(stp:str, etp:str):
-    '''
-    Return a safely rounded split of timeslices decided by "1W-MON".
-
-    Args:
-        stp: datetime string, starting time point of a concurrent unit
-        etp: datatime string, end time point of a concurrent unit
-
-    Returns:
-        subs: a list of (Timestamp, Timestamp) pairs
-    '''    
-    bounds = pd.date_range(stp, etp, freq='1W-MON')
-    print(bounds[0], bounds[-1])
-    head_round = tail_round = None
-    if bounds[0] != stp:
-        head_round = (pd.Timestamp(stp), pd.Timestamp(bounds[0]))
-    if bounds[-1] != etp:
-        tail_round = (pd.Timestamp(bounds[-1]), pd.Timestamp(etp))
-    print('\n\n\n')
-    subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
-    
-    # return rounded time intervals
-    return subs
+from tqdm import tqdm
 
 
 
@@ -276,25 +250,47 @@ class DatabaseSource(Source):
 
             # decide threads that can run concurrently at a time
             cpus = cpu_count()
-            threads = cpus * 2 + 1
 
-            # concurrency object
+            # maximum efficient concurrent thread number
+            t_unit = cpus * 2 + 1
+
+            # containers to hold generated queries, new thread, started thread and generated dataframes:
+            queries = self._concurrent_split()
             thread_pool = Queue()
+            thread_buffer = []
 
-            start = time.time()
+            # an important variable
+            q_size = len(queries)
+
             print(f'Database data load started at {time.ctime()}')
+            start = time.time()
 
             for i, query in self.queries.items():
-                t = Thread(target=concurrent_read, args=(i, self.table_pool, query))
+                t = Thread(target=_concurrent_read, args=(i, self.table_pool, query))
                 thread_pool.put(t)
 
-                print(f'starting thread {i}: {t}...')
-                t.start()
+            progress = tqdm(total=q_size, ascii=True)
 
             while not thread_pool.empty():
-                p = thread_pool.get()
-                p.join()
-                print(f'{p} is finished!')
+                for i in range(min(t_unit, q_size)):
+                    t = thread_pool.get()
+                    thread_buffer.append(t)
+
+                # number of queries left not executed, update progress bar
+                done_threads = min(t_unit, q_size)
+                q_size -= done_threads
+                progress.update(done_threads)
+
+                # start threads
+                for t in thread_buffer:
+                    t.start()
+
+                # join finished threads
+                for t in thread_buffer:
+                    t.join()
+                
+                # clear finished threads from thread buffer
+                thread_buffer = []
 
             end = time.time()
             print(f'Ended at {time.ctime()}, total time {end-start} seconds.')
@@ -305,16 +301,35 @@ class DatabaseSource(Source):
                     where tpep_pickup_datetime >= '{self.big_bound[0]}' and \
                           tpep_dropoff_datetime < '{self.big_bound[1]}';"
 
-        
+            print(f'Database data load started at {time.ctime()}')
+            bare_start = time.time()
+
             self.table = pd.read_sql_query(sql, self.conn)
             self.total_rows = self.table.shape[0]
-            self.table_pool.append(self.table)
+            self.table_pool[0] = self.table
+
+            bare_end = time.time()
+            print(f'Ended at {time.ctime()}, total time {bare_end - bare_start} seconds.')
 
     
-    def _load(string):
+    # helper functions
+    def _concurrent_read(id:int, df_pool:dict, query:str):
         '''
+        Create a new connector to database, each for one thread.
+
+        Args:
+            id: unique marker for a connector
+            df_pool: dataframe pool, storing loaded dataframes
+            query: sql string
         '''
-        table = pd.read_sql_query(string)
+        host = 'localhost'
+        dbname = 'taxi'
+        user = 'postgres'
+
+        conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
+        # cursor = conn.cursor()
+        # cursor.execute(query)
+        df_pool[id] = pd.read_sql_query(query, conn)
 
     
     def _concurrent_split(self, granularity:str='1W-MON'):
@@ -360,8 +375,7 @@ class DatabaseSource(Source):
         pattern = self.pattern
         assert pattern.match(stp) and pattern.match(etp)
 
-        return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid "
-                 "from cleaned_small_yellow_2017_full "
+        return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from cleaned_small_yellow_2017_full "
                 f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
 
     
@@ -451,7 +465,7 @@ class DatabaseSource(Source):
         return sub_table
 
 
-    def weekly_parallel(self, table):
+    def _weekly_parallel(self):
         '''
         A convenient wrapper of concurrent load using a week as deviding unit.
 
@@ -461,10 +475,10 @@ class DatabaseSource(Source):
         Returns:
             table_pool: A pool of sub tables
         '''
-        raise NotImplementedError
+        return self._concurrent_split('1W-MON')
 
 
-    def quaterly_parallel(self, table):
+    def _monthly_parallel(self):
         '''
         A convenient wrapper of concurrent load using a day as deviding unit.
 
@@ -474,21 +488,7 @@ class DatabaseSource(Source):
         Returns:
             table_pool: A pool of sub tables
         '''
-        raise NotImplementedError
-        
-
-    def concurrent_read(id:int, df_pool:dict, query:str):
-        '''
-        '''
-        host = 'localhost'
-        dbname = 'taxi'
-        user = 'postgres'
-
-        conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
-        # cursor = conn.cursor()
-        # cursor.execute(query)
-        dataframes[id] = pd.read_sql_query(query, conn)
-
+        return self._concurrent_split('1M')
 
 
     def _sumrows(self):
