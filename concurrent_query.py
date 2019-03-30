@@ -64,7 +64,7 @@ def concurrent_read(id:int, df_pool:dict, query:str):
     conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
     # cursor = conn.cursor()
     # cursor.execute(query)
-    dataframes[id] = pd.read_sql_query(query, conn)
+    df_pool[id] = pd.read_sql_query(query, conn)
     
 
 # sub intervals:
@@ -74,7 +74,7 @@ subs = safe_weekly_divide('2017-01-01 00:00:00', '2018-01-01 00:00:00')
 queries = {}
 thread_pool = Queue()
 started_threads = []
-dataframes = {}
+dataframes = {} # global variables...
 
 # create sub interval queries
 for i, sub in enumerate(subs):
