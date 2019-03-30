@@ -28,6 +28,8 @@ import psycopg2
 import re
 
 from threading import Thread
+from multiprocessing import cpu_count
+
 
 # helper functions
 # define function to return weekly-sliced time intervals
@@ -52,9 +54,12 @@ def safe_weekly_divide(stp:str, etp:str):
     print('\n\n\n')
     subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
     
+    # return rounded time intervals
     return subs
 
 
+
+# 3 classes in this module
 class Source:
     '''
     Base class of data source.
@@ -94,7 +99,9 @@ class Source:
             self.table['tpep_dropoff_datetime'])
 
 
-# Data source: .csv file
+#========================#
+# Data source: .csv file #
+#========================#
 class CSVSource(Source):
     '''
     Data source class when the data source is a .csv file.
@@ -176,7 +183,9 @@ class CSVSource(Source):
         return self.table.head(first_n_rows)
 
 
-# Data source: relational database
+#==================================#
+# Data source: relational database #
+#==================================#
 class DatabaseSource(Source):
     '''
     Data source class when the data source is a relational database.
@@ -221,12 +230,11 @@ class DatabaseSource(Source):
         self.pattern = rule.__class__.pattern
 
         # unified container: table_pool
-        self.table_pool = []
+        self.table_pool = {}
         self.queries = self._concurrent_split()
 
         # data source info
         # self.total_rows = self._sumrows()
-
 
 
     def __repr__(self, verbose=False):
@@ -265,7 +273,31 @@ class DatabaseSource(Source):
         initialization time to get more flexibility.
         '''
         if self.concurrent:
-            self.queries = self._concurrent_split()
+
+            # decide threads that can run concurrently at a time
+            cpus = cpu_count()
+            threads = cpus * 2 + 1
+
+            # concurrency object
+            thread_pool = Queue()
+
+            start = time.time()
+            print(f'Database data load started at {time.ctime()}')
+
+            for i, query in self.queries.items():
+                t = Thread(target=concurrent_read, args=(i, self.table_pool, query))
+                thread_pool.put(t)
+
+                print(f'starting thread {i}: {t}...')
+                t.start()
+
+            while not thread_pool.empty():
+                p = thread_pool.get()
+                p.join()
+                print(f'{p} is finished!')
+
+            end = time.time()
+            print(f'Ended at {time.ctime()}, total time {end-start} seconds.')
 
         else:
             sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
@@ -285,40 +317,7 @@ class DatabaseSource(Source):
         table = pd.read_sql_query(string)
 
     
-    def _sumrows(self):
-        '''
-        Sum up sub table rows in self.table_pool.
-        '''
-        raise NotImplementedError
-
-
-    def _get_columns(self):
-        '''
-        Return the column names and types of self.table.
-
-        A sure (but maybe slow) way would be directly construct
-        a query to get this info
-
-        Returns:
-            column_info: a dictionary
-        '''
-        # construct a query to retrieve column meta data
-        sql = f"""
-            select column_name as name, data_type as dtype
-            from information_schema.columns
-            where table_schema = 'public' and 
-            table_name = '{self.tbname}';"""
-
-        info = pd.read_sql_query(sql, self.conn)
-
-        # create dictionary {'column_name': 'data_type'}
-        pair = list(zip(info['name'].to_list(), info['dtype'].to_list()))
-        column_info = {name: dtype for (name, dtype) in pair}
-
-        return column_info
-
-    
-    def _concurrent_split(self, granularity:str='24h'):
+    def _concurrent_split(self, granularity:str='1W-MON'):
         '''
         Saperate a query that returns a potentially large table into several
         sub queries and then do them concurrently. 
@@ -329,23 +328,24 @@ class DatabaseSource(Source):
 
         Args:
             granularity: minimum time unit
+            This granularity is TESTED TO BE MOST EFFICIENT with current hardware.
+            Don't change unless necessary!
 
         Returns:
             queries: a list containing sql string initialized with sub time bounds
         '''
-        bounds = pd.date_range(self.big_bound[0], self.big_bound[1], freq=granularity)
-        subs = list(zip(bounds[:-1], bounds[1:]))
+        subs = self._process_granularity(self.big_bound[0], self.big_bound[1], freq=granularity)
         queries = {}
 
         # create sub interval queries
         for i, sub in enumerate(subs):
             stp, etp = list(map(str, sub))
-            queries[i] = self._construct_sql(stp, etp)
+            queries[i] = self._construct_sub_sql(stp, etp)
 
         return queries
 
     
-    def _construct_sql(self, stp:str, etp:str):
+    def _construct_sub_sql(self, stp:str, etp:str):
         '''
         A private helper function to construct sql query, called another
         helper function _construct_split.
@@ -385,13 +385,6 @@ class DatabaseSource(Source):
                     D	        calendar day frequency
                     W	        weekly frequency
                     M	        month end frequency
-                    SM	        semi-month end frequency (15th and end of month)
-                    BM	        business month end frequency
-                    CBM	        custom business month end frequency
-                    MS	        month start frequency
-                    SMS	        semi-month start frequency (1st and 15th)
-                    BMS	        business month start frequency
-                    CBMS	    custom business month start frequency
                     H	        hourly frequency
                     
         The stp and etp must of pattern "yyyy-mm-dd hh:mm:ss", otherwise
@@ -403,7 +396,22 @@ class DatabaseSource(Source):
         Raises:
             AssertionError
         '''
-        raise NotImplementedError # this function is not currently needed
+        assert freq in ['B', 'C', 'D', 'W', 'W-MON', 'M'], 'Only supported frequencies allowed.'
+        bounds = pd.date_range(stp, etp, freq=freq)
+        # print(bounds[0], bounds[-1])
+
+        head_round = tail_round = None
+
+        if bounds[0] != stp:
+            head_round = (pd.Timestamp(stp), pd.Timestamp(bounds[0]))
+        if bounds[-1] != etp:
+            tail_round = (pd.Timestamp(bounds[-1]), pd.Timestamp(etp))
+
+        # rounded time interval
+        subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
+        
+        # return rounded time intervals
+        return subs
 
 
     def subset(self, stp:str, etp:str):
@@ -453,10 +461,10 @@ class DatabaseSource(Source):
         Returns:
             table_pool: A pool of sub tables
         '''
-        return self._
+        raise NotImplementedError
 
 
-    def daily_parallel(self, table):
+    def quaterly_parallel(self, table):
         '''
         A convenient wrapper of concurrent load using a day as deviding unit.
 
@@ -468,4 +476,50 @@ class DatabaseSource(Source):
         '''
         raise NotImplementedError
         
+
+    def concurrent_read(id:int, df_pool:dict, query:str):
+        '''
+        '''
+        host = 'localhost'
+        dbname = 'taxi'
+        user = 'postgres'
+
+        conn = psycopg2.connect(f'host={host} dbname={dbname} user={user}')
+        # cursor = conn.cursor()
+        # cursor.execute(query)
+        dataframes[id] = pd.read_sql_query(query, conn)
+
+
+
+    def _sumrows(self):
+        '''
+        Sum up sub table rows in self.table_pool.
+        '''
+        raise NotImplementedError
+
+
+    def _get_columns(self):
+        '''
+        Return the column names and types of self.table.
+
+        A sure (but maybe slow) way would be directly construct
+        a query to get this info
+
+        Returns:
+            column_info: a dictionary
+        '''
+        # construct a query to retrieve column meta data
+        sql = f"""
+            select column_name as name, data_type as dtype
+            from information_schema.columns
+            where table_schema = 'public' and 
+            table_name = '{self.tbname}';"""
+
+        info = pd.read_sql_query(sql, self.conn)
+
+        # create dictionary {'column_name': 'data_type'}
+        pair = list(zip(info['name'].to_list(), info['dtype'].to_list()))
+        column_info = {name: dtype for (name, dtype) in pair}
+
+        return column_info
 
