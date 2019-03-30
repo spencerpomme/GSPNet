@@ -25,9 +25,11 @@ import numpy as np
 import pandas as pd
 import sqlalchemy
 import psycopg2
+import time
 import re
 
 from threading import Thread
+from queue import Queue
 from multiprocessing import cpu_count
 from tqdm import tqdm
 
@@ -266,7 +268,7 @@ class DatabaseSource(Source):
             start = time.time()
 
             for i, query in self.queries.items():
-                t = Thread(target=_concurrent_read, args=(i, self.table_pool, query))
+                t = Thread(target=DatabaseSource._concurrent_read, args=(i, self.table_pool, query))
                 thread_pool.put(t)
 
             progress = tqdm(total=q_size, ascii=True)
@@ -293,7 +295,7 @@ class DatabaseSource(Source):
                 thread_buffer = []
 
             end = time.time()
-            print(f'Ended at {time.ctime()}, total time {end-start} seconds.')
+            print(f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
 
         else:
             sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
@@ -309,10 +311,11 @@ class DatabaseSource(Source):
             self.table_pool[0] = self.table
 
             bare_end = time.time()
-            print(f'Ended at {time.ctime()}, total time {bare_end - bare_start} seconds.')
+            print(f'Ended at {time.ctime()}, total time {bare_end - bare_start:.2f} seconds.')
 
     
     # helper functions
+    @staticmethod
     def _concurrent_read(id:int, df_pool:dict, query:str):
         '''
         Create a new connector to database, each for one thread.
@@ -410,7 +413,7 @@ class DatabaseSource(Source):
         Raises:
             AssertionError
         '''
-        assert freq in ['B', 'C', 'D', 'W', 'W-MON', 'M'], 'Only supported frequencies allowed.'
+        assert freq in ['B', 'C', 'D', 'W', '1W-MON', 'M'], 'Only supported frequencies allowed.'
         bounds = pd.date_range(stp, etp, freq=freq)
         # print(bounds[0], bounds[-1])
 
