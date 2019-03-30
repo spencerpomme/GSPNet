@@ -28,6 +28,8 @@ import torch
 import os
 
 from PIL import Image
+from tqdm import tqdm
+from multiprocessing import Process, Queue, cpu_count
 
 
 # helper functions
@@ -235,11 +237,13 @@ class Worker:
             viz:    Boolean value, decide create visualization image of tonsors
                     or not
         '''
+        # link to source and rule
         self.source = source
-        
-        # load csv file here, because want to use multi-threading or coroutine
-        self.source.load()
-        self.tables = self.source.table_pool
+        self.tables = self.source.table_pool # <- a dictionary
+        self.rule = rule
+
+        # initialize time rule
+        self.rule.timesplit()
 
         # check if the destination dir exists.
         if not os.path.exists(destin):
@@ -251,8 +255,6 @@ class Worker:
         if viz:
             self.visual_dir = destin + '/viz_images'
             create_dir(self.visual_dir)
-
-        self.time_rule = rule
 
 
     def __repr__(self):
@@ -266,9 +268,14 @@ class Worker:
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
 
 
-    def generate(self):
+    def generate(self, table, pid:int):
         '''
         Generate tensors given the data source and processing rules.
+
+        Args:
+            table: pandas.DataFrame object, one sub table from the
+                   source.table_pool dictionary.
+            pid: a number indicating the generation process id
 
         Returns:
             tensors, and saved into destin directory.
@@ -277,23 +284,21 @@ class Worker:
         | A full run of entire 2017 data (yellow regions) is approximately |
         | 100 minutes, which is extremely slow.                            |
         ********************************************************************
-
         '''
-        # split time using rule object's timesplit method
-        # the reason why do it here is not to pass around big objects
-        self.time_rule.timesplit()
 
-        for i, bound in enumerate(self.time_rule.tslices):
+        for i, bound in enumerate(self.rule.tslices):
             # generate three layers
-            p_layer, n_layer, f_layer = gen_snap_layers(self.table, bound)
+            p_layer, n_layer, f_layer = gen_snap_layers(table, bound)
             # print(self.table.head())
+
             # combine three layers to one tensor(image)
             tensor = gen_tensor(p_layer, n_layer, f_layer)
             # print(tensor)
+
             # save image to given path
             # start time point and end time point of ENTIRE time interval
-            stp = self.time_rule.stp
-            etp = self.time_rule.etp
+            stp = self.rule.stp
+            etp = self.rule.etp
 
             # left bound and right bound of ONE time slice of the time interval
             lbd = bound[0]
@@ -301,7 +306,8 @@ class Worker:
 
             # save tensor to path
             tensor_path = os.path.abspath(
-                self.tensor_dir + f'/{i}-{lbd}-{rbd}-{stp}-{etp}.pkl'.replace(' ', '_').replace(':',''))
+                self.tensor_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
+            )
 
             # save method 1 => time for 1 day is: 7m 47s
             torch.save(tensor, tensor_path)
@@ -309,7 +315,7 @@ class Worker:
             # if viz is true, then save images to separate folder
             if self.viz:
                 image_path = os.path.abspath(
-                    self.visual_dir + f'/{i}-{lbd}-{rbd}-{stp}-{etp}-.jpg'.replace(' ', '_').replace(':',''))
+                    self.visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.jpg'.replace(' ', '_').replace(':',''))
                 
                 image = gen_image(p_layer, n_layer, f_layer)
 
@@ -318,15 +324,60 @@ class Worker:
                 vimage.save(image_path)
 
 
-    def parallel_gen(self, slaves:int=0):
+    def parallel_gen(self):
         '''
         Generate tonsors in parrele using multiprocessing.
 
         The tables passed from Source instance should be applied generation
         function in parallel.
 
-        Args:
-            slaves: number of processes. 
+        Optimized process number is hard coded.
+        
         '''
-        raise NotImplementedError
+        # parallel object holders
+        process_pool = Queue()
+        process_buffer = []
+
+        # important variables
+        tb_size = len(self.tables)
+
+        # efficient process number
+        p_unit = cpu_count()
+
+        # initialize process bar
+        progress = tqdm(total=tb_size, ascii=True)
+
+        print(f'Tensor generation started at {time.ctime()}')
+        start = time.time()
+
+        # create process and put into a queue
+        for pid, table in enumerate(self.tables):
+            p = Process(target=self.generate, args=(table, pid))
+            process_pool.put(p)
+            process_buffer.append(p)
+
+        # do actual tensor creation and serialization
+        while not process_pool.empyt():
+            for i in range(min(p_unit, tb_size)):
+                p = process_pool.get()
+                process_buffer.append(p)
+            
+            # number of tables remain not transformed to tensor
+            done_processes = min(p_unit, tb_size)
+            tb_size -= done_processes
+            progress.update(done_processes)
+
+            # start processes
+            for p in process_buffer:
+                p.start()
+
+            # join processes
+            for p in process_buffer:
+                p.join()
+
+            # clear finished processes from process buffer
+            process_buffer = []
+
+        end = time.time()
+        print(f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
         
