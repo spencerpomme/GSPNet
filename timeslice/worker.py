@@ -239,6 +239,10 @@ class Worker:
         '''
         # link to source and rule
         self.source = source
+
+        # initialize source
+        self.source.load()
+        
         self.tables = self.source.table_pool # <- a dictionary
         self.rule = rule
 
@@ -332,7 +336,7 @@ class Worker:
         function in parallel.
 
         Optimized process number is hard coded.
-        
+
         '''
         # parallel object holders
         process_pool = Queue()
