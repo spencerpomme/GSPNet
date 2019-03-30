@@ -218,7 +218,7 @@ class Worker:
     real_id = list(map(str, list(yellow_zone.loc[:,'LocationID'])))
     conv_id = [i for i in range(image_size)]
 
-
+    # create matrix id mapping
     assert len(real_id) == len(conv_id)
     mp = dict(zip(real_id, conv_id))
 
