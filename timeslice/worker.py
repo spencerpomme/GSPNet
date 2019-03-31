@@ -204,6 +204,9 @@ def create_dir(directory: str):
         raise OSError
 
 
+def f(worker):
+    worker.generate()
+
 def parallel_gen(source, rule, destin='.', viz=True):
     '''
     Generate tonsors in parrele using multiprocessing.
@@ -215,15 +218,11 @@ def parallel_gen(source, rule, destin='.', viz=True):
 
     '''
     source.load()
-    tables = source.table_pool
+    tables = source.table_pool # <- dictionary
 
     # parallel object holders
     process_pool = Queue()
     process_buffer = []
-
-    # set directories
-    tensor_dir = destin + '/tensors'
-    visual_dir = destin + '/viz_images'
 
     # important variables
     tb_size = len(tables)
@@ -238,15 +237,14 @@ def parallel_gen(source, rule, destin='.', viz=True):
     start = time.time()
 
     # create process and put into a queue
-    for pid, table in enumerate(tables):
+    for pid, table in tables.items():
 
         # instantiate a new Worker object
-        tensor_gen = Worker(tables=tables, destin='data_test/concurrent_test', rule=rule, viz=viz)
+        gen_worker = Worker(pid, table, rule, destin, viz)
 
         # table, rule, pid:int, tensor_dir, visual_dir, viz=True
-        p = Process(target=tensor_gen._generate, args=(table, rule, pid, tensor_dir, visual_dir))
+        p = Process(target=f, args=(gen_worker,))
         process_pool.put(p)
-        process_buffer.append(p)
 
     # do actual tensor creation and serialization
     while not process_pool.empty():
@@ -295,20 +293,23 @@ class Worker:
     assert len(real_id) == len(conv_id)
     mp = dict(zip(real_id, conv_id))
 
-    def __init__(self, tables, destin: str, rule, viz: bool):
+    def __init__(self, pid:int, table, rule, destin:str, viz:bool):
         '''
         Init method for Worker.
 
         Args:
-            tables: a dictionary of dataframes
+            pid: process id
             destin: String, indicating where to store the generated tensors and
                     visualization images of the tensors (if any)
+            table: a dataframe
             rule:   Rule object that determines how to operate on source data
+            destin: directory to save generated tensor and image
             viz:    Boolean value, decide create visualization image of tonsors
                     or not
         '''
-        self.tables = self.source.table_pool # <- a dictionary
+        self.table = table
         self.rule = rule
+        self.pid = pid
 
         # initialize time rule
         self.rule.timesplit()
@@ -335,8 +336,7 @@ class Worker:
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
 
     
-    @staticmethod
-    def _generate(table, rule, pid:int, tensor_dir, visual_dir, viz=True):
+    def generate(self):
         '''
         Generate tensors given the data source and processing rules.
 
@@ -351,9 +351,9 @@ class Worker:
         | 100 minutes, which is extremely slow.                            |
         ********************************************************************
         '''
-        for i, bound in enumerate(rule.tslices):
+        for i, bound in enumerate(self.rule.tslices):
             # generate three layers
-            p_layer, n_layer, f_layer = gen_snap_layers(table, bound)
+            p_layer, n_layer, f_layer = gen_snap_layers(self.table, bound)
             # print(table.head())
 
             # combine three layers to one tensor(image)
@@ -362,8 +362,8 @@ class Worker:
 
             # save image to given path
             # start time point and end time point of ENTIRE time interval
-            stp = rule.stp
-            etp = rule.etp
+            stp = self.rule.stp
+            etp = self.rule.etp
 
             # left bound and right bound of ONE time slice of the time interval
             lbd = bound[0]
@@ -371,7 +371,7 @@ class Worker:
 
             # save tensor to path
             tensor_path = os.path.abspath(
-                tensor_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
+                self.tensor_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{self.pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
             )
 
             # save method 1 => time for 1 day is: 7m 47s
@@ -380,7 +380,7 @@ class Worker:
             # if viz is true, then save images to separate folder
             if viz:
                 image_path = os.path.abspath(
-                    visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.jpg'.replace(' ', '_').replace(':',''))
+                    self.visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.jpg'.replace(' ', '_').replace(':',';'))
                 
                 image = gen_image(p_layer, n_layer, f_layer)
 
