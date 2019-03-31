@@ -171,14 +171,14 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, tbname, rule, host:str='localhost', dbname:str='taxi',
+    def __init__(self, tbname, big_bound=('2017-01-01 00:00:00', '2018-01-01 00:00:00'),
+                 host:str='localhost', dbname:str='taxi',
                  user:str='postgres', concurrent:bool=True):
         '''
         Init method for database source.
 
         Args:
             tbname: name of the table
-            rule: time rule object
             host: database address
             dbname: database name
             user: (admin) user of the database
@@ -188,10 +188,10 @@ class DatabaseSource(Source):
         Example:
             host="localhost" dbname="taxi" user="postgres"
         '''
+        self.tbname = tbname
         self.host = host
         self.dbname = dbname
         self.user = user
-        self.tbname = tbname
         self.concurrent = concurrent
 
         # connect to the database
@@ -199,15 +199,20 @@ class DatabaseSource(Source):
         self.cur = self.conn.cursor()
 
         # time rule attributes for concurrent load strategy:
-        self.big_bound = (rule.stp, rule.etp)
-        self.time_freq = rule.freq
+        self.big_bound = big_bound
 
         # datetime format checking pattern
-        self.pattern = rule.__class__.pattern
+        self.pattern = re.compile(
+            '^([0-9]{4})-([0-1][0-9])-([0-3][0-9])\s([0-1][0-9]|[2][0-3]):([0-5][0-9]):([0-5][0-9])$'
+        )
 
         # unified container: table_pool
         self.table_pool = {}
         self.queries = self._concurrent_split()
+
+        # sub ranges of time interval
+        # for example, an entire year can be divided into 4 quaters.
+        self.sub_ranges = None
 
         # data source info
         # self.total_rows = self._sumrows()
@@ -293,13 +298,15 @@ class DatabaseSource(Source):
                 
                 # clear finished threads from thread buffer
                 thread_buffer = []
-
+            
+            # close progress bar
+            progress.close()
             end = time.time()
             print(f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
 
         else:
             sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
-                    from cleaned_small_yellow_2017_full \
+                    from {self.tbname} \
                     where tpep_pickup_datetime >= '{self.big_bound[0]}' and \
                           tpep_dropoff_datetime < '{self.big_bound[1]}';"
 
@@ -353,6 +360,7 @@ class DatabaseSource(Source):
             queries: a list containing sql string initialized with sub time bounds
         '''
         subs = self._process_granularity(self.big_bound[0], self.big_bound[1], freq=granularity)
+        self.sub_ranges = subs
         queries = {}
 
         # create sub interval queries
@@ -378,7 +386,7 @@ class DatabaseSource(Source):
         pattern = self.pattern
         assert pattern.match(stp) and pattern.match(etp)
 
-        return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from cleaned_small_yellow_2017_full "
+        return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from {self.tbname} "
                 f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
 
     
@@ -442,7 +450,7 @@ class DatabaseSource(Source):
             both these two strings are of format "YYYY-MM-DD hh:mm:ss"
 
         Return:
-            sub_slice: A list of time intervals tuples,each item is a tuple of
+            sub_table: A list of time intervals tuples,each item is a tuple of
             two interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
             For example, a possible return could be:
 
@@ -456,7 +464,7 @@ class DatabaseSource(Source):
         if pattern.match(self.stp) and pattern.match(self.etp):
             sql = f"""
                     select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid from 
-                    cleaned_small_yellow_2017_full where
+                    {self.tbname} where
                     tpep_dropoff_datetime > '{stp}' or
                     tpep_pickup_datetime <= '{etp}';
                     """

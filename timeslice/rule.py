@@ -77,7 +77,10 @@ class TimeSlice:
         self.stp = stp
         self.etp = etp
         self.freq = freq
-        self.tslices = None
+        self.fragments = None
+
+        # initialize rule
+        self.timesplit()
 
 
     def __repr__(self):
@@ -104,9 +107,8 @@ class TimeSlice:
         if pattern.match(self.stp) and pattern.match(self.etp):
 
             time_bounds = pd.date_range(self.stp, self.etp, freq=self.freq)
-            sub_intervals = list(zip(time_bounds[:-1], time_bounds[1:]))
+            self.fragments = list(zip(time_bounds[:-1], time_bounds[1:]))
 
-            self.tslices = sub_intervals
         else:
             raise Exception('Provided time bound is of invalid format.')
 
@@ -115,4 +117,4 @@ class TimeSlice:
         '''
         A convenient wrapper to return time slices.
         '''
-        return self.tslices
+        return self.fragments

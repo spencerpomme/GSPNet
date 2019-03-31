@@ -27,6 +27,7 @@ import pickle as pkl
 import torch
 import time
 import os
+import copy
 
 from PIL import Image
 from tqdm import tqdm
@@ -48,14 +49,15 @@ def gen_snap_layers(table, bound):
     left = bound[0]
     right = bound[1]
     
-    print(left, right)
-    
+    #print(left, right)
     # no need to sort table indeed?
     projected_table = table.loc[:, ['tripid',
                                     'tpep_pickup_datetime',
                                     'tpep_dropoff_datetime',
                                     'pulocationid',
                                     'dolocationid']]
+
+    projected_table.head(5)
 
     # The condition of making snapshot should be:
     # AT LEAST ONE temporal end of a trip should be within the bounds:
@@ -298,21 +300,20 @@ class Worker:
         Init method for Worker.
 
         Args:
-            pid: process id
+            pid:    process id
             destin: String, indicating where to store the generated tensors and
                     visualization images of the tensors (if any)
-            table: a dataframe
+            table:  a dataframe
             rule:   Rule object that determines how to operate on source data
+            subts:  sub time slice interval
             destin: directory to save generated tensor and image
             viz:    Boolean value, decide create visualization image of tonsors
                     or not
         '''
+        
+        self.pid = pid
         self.table = table
         self.rule = rule
-        self.pid = pid
-
-        # initialize time rule
-        self.rule.timesplit()
 
         # check if the destination dir exists.
         if not os.path.exists(destin):
@@ -351,8 +352,11 @@ class Worker:
         | 100 minutes, which is extremely slow.                            |
         ********************************************************************
         '''
-        for i, bound in enumerate(self.rule.tslices):
+        for i, bound in enumerate(self.rule.fragments):
+
+            # print(f'Generating tensor No.{i} : {bound}')
             # generate three layers
+            print(type(bound))
             p_layer, n_layer, f_layer = gen_snap_layers(self.table, bound)
             # print(table.head())
 
@@ -360,8 +364,7 @@ class Worker:
             tensor = gen_tensor(p_layer, n_layer, f_layer)
             # print(tensor)
 
-            # save image to given path
-            # start time point and end time point of ENTIRE time interval
+            # start and end bound for entire sub interval
             stp = self.rule.stp
             etp = self.rule.etp
 
@@ -369,18 +372,21 @@ class Worker:
             lbd = bound[0]
             rbd = bound[1]
 
-            # save tensor to path
+            # tensor save path
             tensor_path = os.path.abspath(
                 self.tensor_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{self.pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
+            )
+
+            # image save path
+            image_path = os.path.abspath(
+                self.visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{self.pid}-{i}.jpg'.replace(' ', '_').replace(':',';')
             )
 
             # save method 1 => time for 1 day is: 7m 47s
             torch.save(tensor, tensor_path)
 
             # if viz is true, then save images to separate folder
-            if viz:
-                image_path = os.path.abspath(
-                    self.visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{pid}-{i}.jpg'.replace(' ', '_').replace(':',';'))
+            if self.viz:
                 
                 image = gen_image(p_layer, n_layer, f_layer)
 
