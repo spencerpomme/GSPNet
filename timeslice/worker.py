@@ -209,6 +209,9 @@ def create_dir(directory: str):
 def f(worker):
     worker.generate()
 
+
+
+# This method is currently not working, need to modify
 def parallel_gen(source, rule, destin='.', viz=True):
     '''
     Generate tonsors in parrele using multiprocessing.
@@ -356,7 +359,6 @@ class Worker:
 
             # print(f'Generating tensor No.{i} : {bound}')
             # generate three layers
-            print(type(bound))
             p_layer, n_layer, f_layer = gen_snap_layers(self.table, bound)
             # print(table.head())
 
