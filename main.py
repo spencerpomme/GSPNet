@@ -109,4 +109,3 @@ if __name__ == '__main__':
         worker.generate()
 
     print(f'Generation finished at {time.ctime()}')
-    tqdm.close()
