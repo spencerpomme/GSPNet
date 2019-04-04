@@ -31,10 +31,21 @@ import copy
 
 from PIL import Image
 from tqdm import tqdm
-from multiprocessing import Process, Queue, cpu_count
+from numba import jit
 
+# column name: index mapping
+colmap = {
+            'tripid': 0,
+            'tpep_pickup_datetime': 1,
+            'tpep_dropoff_datetime': 2,
+            'pulocationid': 3,
+            'dolocationid': 4
+        }
 
 # helper functions
+# Function gen_snap_layers is hard to optimize for the slicing part depends heavily on
+# timestamp based selection. This functionality would be rather cumbersome if to
+# be done in numpy.
 def gen_snap_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
@@ -49,15 +60,13 @@ def gen_snap_layers(table, bound):
     left = bound[0]
     right = bound[1]
     
-    #print(left, right)
-    # no need to sort table indeed?
-    projected_table = table.loc[:, ['tripid',
-                                    'tpep_pickup_datetime',
-                                    'tpep_dropoff_datetime',
-                                    'pulocationid',
-                                    'dolocationid']]
+    # The .loc operation below is moved to be executed in CSVSource initialization.
+    # projected_table = table.loc[:, ['tripid',
+    #                                 'tpep_pickup_datetime',
+    #                                 'tpep_dropoff_datetime',
+    #                                 'pulocationid',
+    #                                 'dolocationid']]
 
-    projected_table.head(5)
 
     # The condition of making snapshot should be:
     # AT LEAST ONE temporal end of a trip should be within the bounds:
@@ -94,9 +103,9 @@ def gen_image(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
     Params:
-        p_layer: matrix of past layer
-        n_layer: matrix of now layer
-        f_layer: matrix of future layer
+        p_layer: matrix of past layer, pandas dataframe
+        n_layer: matrix of now layer, pandas dataframe
+        f_layer: matrix of future layer, pandas dataframe
     Return:
         A PIL image.
     '''
@@ -141,15 +150,14 @@ def gen_tensor(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
     Params:
-        p_layer: matrix of past layer
-        n_layer: matrix of now layer
-        f_layer: matrix of future layer
+        p_layer: matrix of past layer, pandas dataframe
+        n_layer: matrix of now layer, pandas dataframe
+        f_layer: matrix of future layer, pandas dataframe
         
     Return:
         A torch tensor.
     '''
     # create a snapshot
-    img_size = Worker.image_size
     snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
 
     # unexpected zones
@@ -190,6 +198,104 @@ def gen_tensor(p_layer, n_layer, f_layer):
     return snapshot
 
 
+# adjacency matrix creater function
+@jit(nopython=True, parallel=True)
+def create_adjacency_matrix(arr, am):
+    '''
+    Fill in values into the provided am(adjacency matrxi) with the connection info
+    numpy array.
+
+    Args:
+        arr: OD information, 2d numpy array
+        am: adjacency matrix, zero 2d numpy array
+
+    Returns:
+        am: a filled adjacency matrix 2d numpy array
+    '''
+    for row in range(arr.shape[0]):
+        try:
+            # this twisted roundabout is due to not supported feature for iterating 2d arrays:
+            am[arr[row,:][colmap['pulocationid']], arr[row, :][colmap['dolocationid']]] += 1
+        except Exception as e:
+            continue
+
+    return am
+
+
+# numba enhanced version
+def gen_image_fast(p_layer, n_layer, f_layer):
+    '''
+    Generate an image using given matrices.
+    Params:
+        p_layer: matrix of past layer, pandas dataframe
+        n_layer: matrix of now layer, pandas dataframe
+        f_layer: matrix of future layer, pandas dataframe
+    Return:
+        A PIL image.
+    '''
+    # convert pandas dataframe to numpy array
+    p_layer = p_layer.to_numpy()[1:, :]
+    n_layer = n_layer.to_numpy()[1:, :]
+    f_layer = f_layer.to_numpy()[1:, :]
+
+    # create a snapshot
+    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int32')
+
+    # future-Red: 0
+    snapshot = create_adjacency_matrix(p_layer, snapshot)
+
+    # past-Green: 1
+    snapshot = create_adjacency_matrix(n_layer, snapshot)
+
+    # now-Blue: 2
+    snapshot = create_adjacency_matrix(f_layer, snapshot)
+
+    # simple normalize
+    snapshot *= (255 // snapshot.max())
+    snapshot = snapshot.astype('uint8')
+    image = Image.fromarray(snapshot)
+
+    return image
+
+
+# numba enhanced version
+def gen_tensor_fast(p_layer, n_layer, f_layer):
+    '''
+    Generate a tensor using given matrices.
+    Params:
+        p_layer: matrix of past layer, pandas dataframe
+        n_layer: matrix of now layer, pandas dataframe
+        f_layer: matrix of future layer, pandas dataframe
+        
+    Return:
+        A torch tensor.
+    '''
+    # convert pandas dataframe to numpy array
+    p_layer = p_layer.to_numpy()[1:, :]
+    n_layer = n_layer.to_numpy()[1:, :]
+    f_layer = f_layer.to_numpy()[1:, :]
+
+    # create a snapshot
+    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
+
+    # future-Red: 0
+    snapshot = create_adjacency_matrix(p_layer, snapshot)
+
+    # past-Green: 1
+    snapshot = create_adjacency_matrix(n_layer, snapshot)
+
+    # now-Blue: 2
+    snapshot = create_adjacency_matrix(f_layer, snapshot)
+    
+    # normalize
+    sm = snapshot.max()
+    # print(sm)
+    snapshot *= (255 // sm)
+    snapshot = torch.from_numpy(snapshot)
+
+    return snapshot
+
+
 def create_dir(directory: str):
     '''
     Helper function to create directory
@@ -204,78 +310,6 @@ def create_dir(directory: str):
     except OSError:
         print('Error: Creating directory. ' +  directory)
         raise OSError
-
-
-def f(worker):
-    worker.generate()
-
-
-
-# This method is currently not working, need to modify
-def parallel_gen(source, rule, destin='.', viz=True):
-    '''
-    Generate tonsors in parrele using multiprocessing.
-
-    The tables passed from Source instance should be applied generation
-    function in parallel.
-
-    Optimized process number is hard coded.
-
-    '''
-    source.load()
-    tables = source.table_pool # <- dictionary
-
-    # parallel object holders
-    process_pool = Queue()
-    process_buffer = []
-
-    # important variables
-    tb_size = len(tables)
-
-    # efficient process number
-    p_unit = cpu_count()
-
-    # initialize process bar
-    progress = tqdm(total=tb_size, ascii=True)
-
-    print(f'Tensor generation started at {time.ctime()}')
-    start = time.time()
-
-    # create process and put into a queue
-    for pid, table in tables.items():
-
-        # instantiate a new Worker object
-        gen_worker = Worker(pid, table, rule, destin, viz)
-
-        # table, rule, pid:int, tensor_dir, visual_dir, viz=True
-        p = Process(target=f, args=(gen_worker,))
-        process_pool.put(p)
-
-    # do actual tensor creation and serialization
-    while not process_pool.empty():
-        for i in range(min(p_unit, tb_size)):
-            p = process_pool.get()
-            process_buffer.append(p)
-        
-        # number of tables remain not transformed to tensor
-        done_processes = min(p_unit, tb_size)
-        tb_size -= done_processes
-        progress.update(done_processes)
-
-        # start processes
-        for p in process_buffer:
-            p.start()
-
-        # join processes
-        for p in process_buffer:
-            p.join()
-
-        # clear finished processes from process buffer
-        process_buffer = []
-
-    end = time.time()
-    print(f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
-
 
 
 class Worker:
@@ -363,7 +397,7 @@ class Worker:
             # print(table.head())
 
             # combine three layers to one tensor(image)
-            tensor = gen_tensor(p_layer, n_layer, f_layer)
+            tensor = gen_tensor_fast(p_layer, n_layer, f_layer)
 
             # start and end bound for entire sub interval
             stp = self.rule.stp
@@ -389,13 +423,8 @@ class Worker:
             # if viz is true, then save images to separate folder
             if self.viz:
                 
-                image = gen_image(p_layer, n_layer, f_layer)
+                image = gen_image_fast(p_layer, n_layer, f_layer)
 
                 # resize to x50
-                vimage = image.resize((345,345))
-                vimage.save(image_path)
-
-
-
-
-        
+                # vimage = image.resize((345,345))
+                vimage.save(image_path)        
