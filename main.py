@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_03', ('2017-03-01 00:00:00', '2017-04-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-04-01 00:00:00', '2018-01-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     for k in tables.keys():
 
         # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
-        wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min/03', True)
+        wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min/rest', True)
         workers.append(wp)
 
     print(f'Start generating tensors at {time.ctime()}')
