@@ -364,7 +364,6 @@ class Worker:
 
             # combine three layers to one tensor(image)
             tensor = gen_tensor(p_layer, n_layer, f_layer)
-            # print(tensor)
 
             # start and end bound for entire sub interval
             stp = self.rule.stp
@@ -376,12 +375,12 @@ class Worker:
 
             # tensor save path
             tensor_path = os.path.abspath(
-                self.tensor_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{self.pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
+                self.tensor_dir + f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
             )
 
             # image save path
             image_path = os.path.abspath(
-                self.visual_dir + f'/{lbd}-{rbd}-{stp}-{etp}-p{self.pid}-{i}.jpg'.replace(' ', '_').replace(':',';')
+                self.visual_dir + f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.jpg'.replace(' ', '_').replace(':',';')
             )
 
             # save method 1 => time for 1 day is: 7m 47s
