@@ -136,7 +136,13 @@ class CSVSource(Source):
         '''
         try:
              # read csv file and format time related colums
-            self.table = pd.read_csv(self.file)
+            temp = pd.read_csv(self.file)
+            self.table = temp.loc[:, ['tripid',
+                                    'tpep_pickup_datetime',
+                                    'tpep_dropoff_datetime',
+                                    'pulocationid',
+                                    'dolocationid']]
+                                    
             self.shape = self.table.shape
             self.format_time_cols()
             self.dtypes = self.table.dtypes
