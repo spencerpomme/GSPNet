@@ -24,6 +24,8 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import numpy as np
 import pandas as pd
 import torch
+import glob
+
 from collection import Counter
 from torch.utils.data import TensorDataset, DataLoader
 
@@ -36,7 +38,7 @@ def batch_data(states, sequence_length, batch_size):
         states: 
         sequence_length: The sequence length of each batch
         batch_size: The size of each batch; the number of sequences in a batch
-        
+
     Return:
         DataLoader with batched data
     """
