@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_02', ('2017-02-01 00:00:00', '2018-03-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2017_02', ('2017-02-01 00:00:00', '2017-03-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
