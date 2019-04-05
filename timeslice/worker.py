@@ -32,6 +32,8 @@ import copy
 from PIL import Image
 from tqdm import tqdm
 from numba import jit
+from numba import types
+from numba.typed import Dict
 
 # column name: index mapping
 colmap = {
@@ -61,7 +63,7 @@ def gen_snap_layers(table, bound):
     right = bound[1]
     
     # The .loc operation below is moved to be executed in CSVSource initialization.
-    # projected_table = table.loc[:, ['tripid',
+    # table = table.loc[:, ['tripid',
     #                                 'tpep_pickup_datetime',
     #                                 'tpep_dropoff_datetime',
     #                                 'pulocationid',
@@ -70,11 +72,11 @@ def gen_snap_layers(table, bound):
 
     # The condition of making snapshot should be:
     # AT LEAST ONE temporal end of a trip should be within the bounds:
-    snap = projected_table.loc[
-        ((projected_table['tpep_pickup_datetime'] >= left) &
-         (projected_table['tpep_pickup_datetime'] < right)) |
-        ((projected_table['tpep_dropoff_datetime'] >= left) &
-         (projected_table['tpep_dropoff_datetime'] < right))]
+    snap = table.loc[
+        ((table['tpep_pickup_datetime'] >= left) &
+         (table['tpep_pickup_datetime'] < right)) |
+        ((table['tpep_dropoff_datetime'] >= left) &
+         (table['tpep_dropoff_datetime'] < right))]
 
     # temp table to generate F,P,N layers
     # keep snap intact
@@ -199,27 +201,64 @@ def gen_tensor(p_layer, n_layer, f_layer):
 
 
 # adjacency matrix creater function
-@jit(nopython=True, parallel=True)
-def create_adjacency_matrix(arr, am):
+@jit(parallel=True)
+def create_adjacency_matrix(arr, am, ly:int):
     '''
     Fill in values into the provided am(adjacency matrxi) with the connection info
-    numpy array.
+    numpy array. Copy a list here for performance
+    (dict is not supported even just plainly put within jit decorated function)
 
     Args:
         arr: OD information, 2d numpy array
         am: adjacency matrix, zero 2d numpy array
+        ly: layer number of 3-layer tensor
 
     Returns:
         am: a filled adjacency matrix 2d numpy array
     '''
-    for row in range(arr.shape[0]):
-        try:
-            # this twisted roundabout is due to not supported feature for iterating 2d arrays:
-            am[arr[row,:][colmap['pulocationid']], arr[row, :][colmap['dolocationid']]] += 1
-        except Exception as e:
-            continue
+    mapping = {
+                    4: 0,   12: 1,   13: 2,   24: 3,   41: 4,   42: 5,
+                    43: 6,   45: 7,   48: 8,   50: 9,   68: 10,  74: 11,
+                    75: 12,  79: 13,  87: 14,  88: 15,  90: 16, 100: 17,
+                    103: 18, 104: 19, 105: 20, 107: 21, 113: 22, 114: 23,
+                    116: 24, 120: 25, 125: 26, 127: 27, 128: 28, 137: 29,
+                    140: 30, 141: 31, 142: 32, 143: 33, 144: 34, 148: 35,
+                    151: 36, 152: 37, 153: 38, 158: 39, 161: 40, 162: 41,
+                    163: 42, 164: 43, 166: 44, 170: 45, 186: 46, 194: 47,
+                    202: 48, 209: 49, 211: 50, 224: 51, 229: 52, 230: 53,
+                    231: 54, 232: 55, 233: 56, 234: 57, 236: 58, 237: 59,
+                    238: 60, 239: 61, 243: 62, 244: 63, 246: 64, 249: 65,
+                    261: 66, 262: 67, 263: 68
+    }
+        
+    for i in range(arr.shape[0]):
+        # this twisted roundabout is due to not supported feature for iterating 2d arrays:
+        am[mapping[arr[i, :][3]],
+           mapping[arr[i, :][4]],
+           ly] += 1
 
     return am
+
+
+# adjacency matrix creater function
+# @jit(nopython=True, parallel=True)
+# def create_adjacency_matrix(arr, am):
+#     '''
+#     Fill in values into the provided am(adjacency matrxi) with the connection info
+#     numpy array.
+
+#     Args:
+#         arr: OD information, 2d numpy array
+#         am: adjacency matrix, zero 2d numpy array
+
+#     Returns:
+#         am: a filled adjacency matrix 2d numpy array
+#     '''
+#     for i in range(arr.shape[0]):
+#         # this twisted roundabout is due to not supported feature for iterating 2d arrays:
+#         am[arr[i, :][3], arr[i, :][4]] += 1
+
+#     return am
 
 
 # numba enhanced version
@@ -233,7 +272,7 @@ def gen_image_fast(p_layer, n_layer, f_layer):
     Return:
         A PIL image.
     '''
-    # convert pandas dataframe to numpy array
+    # convert pandas dataframe to numpy array, only get OD columns
     p_layer = p_layer.to_numpy()[1:, :]
     n_layer = n_layer.to_numpy()[1:, :]
     f_layer = f_layer.to_numpy()[1:, :]
@@ -242,13 +281,13 @@ def gen_image_fast(p_layer, n_layer, f_layer):
     snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int32')
 
     # future-Red: 0
-    snapshot = create_adjacency_matrix(p_layer, snapshot)
+    snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
 
     # past-Green: 1
-    snapshot = create_adjacency_matrix(n_layer, snapshot)
+    snapshot = create_adjacency_matrix(n_layer, snapshot, 1)
 
     # now-Blue: 2
-    snapshot = create_adjacency_matrix(f_layer, snapshot)
+    snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
 
     # simple normalize
     snapshot *= (255 // snapshot.max())
@@ -270,7 +309,7 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
     Return:
         A torch tensor.
     '''
-    # convert pandas dataframe to numpy array
+    # convert pandas dataframe to numpy array, only get OD columns
     p_layer = p_layer.to_numpy()[1:, :]
     n_layer = n_layer.to_numpy()[1:, :]
     f_layer = f_layer.to_numpy()[1:, :]
@@ -279,13 +318,13 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
     snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
 
     # future-Red: 0
-    snapshot = create_adjacency_matrix(p_layer, snapshot)
+    snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
 
     # past-Green: 1
-    snapshot = create_adjacency_matrix(n_layer, snapshot)
+    snapshot = create_adjacency_matrix(n_layer, snapshot, 1)
 
     # now-Blue: 2
-    snapshot = create_adjacency_matrix(f_layer, snapshot)
+    snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
     
     # normalize
     sm = snapshot.max()
@@ -349,7 +388,7 @@ class Worker:
         '''
         
         self.pid = pid
-        self.table = table
+        self.table = self.clean_rows(table)
         self.rule = rule
 
         # check if the destination dir exists.
@@ -373,6 +412,50 @@ class Worker:
                  visualize: {self.viz}\n\
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
 
+
+    def clean_rows(self, table):
+        '''
+        Remove rows in the table(pandas dataframe) if either of its location ID
+        is not in Worker.mp
+
+        The current supported ids(keys of dictionary) are:
+        mapping = {
+                    '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
+                    '43': 6,   '45': 7,   '48': 8,   '50': 9,   '68': 10,  '74': 11,
+                    '75': 12,  '79': 13,  '87': 14,  '88': 15,  '90': 16, '100': 17,
+                    '103': 18, '104': 19, '105': 20, '107': 21, '113': 22, '114': 23,
+                    '116': 24, '120': 25, '125': 26, '127': 27, '128': 28, '137': 29,
+                    '140': 30, '141': 31, '142': 32, '143': 33, '144': 34, '148': 35,
+                    '151': 36, '152': 37, '153': 38, '158': 39, '161': 40, '162': 41,
+                    '163': 42, '164': 43, '166': 44, '170': 45, '186': 46, '194': 47,
+                    '202': 48, '209': 49, '211': 50, '224': 51, '229': 52, '230': 53,
+                    '231': 54, '232': 55, '233': 56, '234': 57, '236': 58, '237': 59,
+                    '238': 60, '239': 61, '243': 62, '244': 63, '246': 64, '249': 65,
+                    '261': 66, '262': 67, '263': 68
+        }
+        '''
+        # print(f'before cleansing table size: {table.shape}')
+        mapping = {
+                    '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
+                    '43': 6,   '45': 7,   '48': 8,   '50': 9,   '68': 10,  '74': 11,
+                    '75': 12,  '79': 13,  '87': 14,  '88': 15,  '90': 16, '100': 17,
+                    '103': 18, '104': 19, '105': 20, '107': 21, '113': 22, '114': 23,
+                    '116': 24, '120': 25, '125': 26, '127': 27, '128': 28, '137': 29,
+                    '140': 30, '141': 31, '142': 32, '143': 33, '144': 34, '148': 35,
+                    '151': 36, '152': 37, '153': 38, '158': 39, '161': 40, '162': 41,
+                    '163': 42, '164': 43, '166': 44, '170': 45, '186': 46, '194': 47,
+                    '202': 48, '209': 49, '211': 50, '224': 51, '229': 52, '230': 53,
+                    '231': 54, '232': 55, '233': 56, '234': 57, '236': 58, '237': 59,
+                    '238': 60, '239': 61, '243': 62, '244': 63, '246': 64, '249': 65,
+                    '261': 66, '262': 67, '263': 68
+        }
+        
+        table = table.loc[(table['pulocationid'].isin(mapping.keys())) &
+                          (table['dolocationid'].isin(mapping.keys()))]
+
+        # print(f'after cleansing table size: {table.shape}')
+
+        return table
     
     def generate(self):
         '''
@@ -426,5 +509,5 @@ class Worker:
                 image = gen_image_fast(p_layer, n_layer, f_layer)
 
                 # resize to x50
-                # vimage = image.resize((345,345))
+                vimage = image.resize((345,345))
                 vimage.save(image_path)        
