@@ -278,7 +278,7 @@ def gen_image_fast(p_layer, n_layer, f_layer):
     f_layer = f_layer.to_numpy()[1:, :]
 
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int32')
+    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int16')
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
@@ -305,7 +305,7 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
-        
+
     Return:
         A torch tensor.
     '''
@@ -315,7 +315,7 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
     f_layer = f_layer.to_numpy()[1:, :]
 
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
+    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int64')
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
@@ -325,11 +325,11 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
 
     # now-Blue: 2
     snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
-    
-    # normalize
-    sm = snapshot.max()
-    # print(sm)
-    snapshot *= (255 // sm)
+
+    # # normalize
+    # sm = snapshot.max()
+    # # print(sm)
+    # snapshot *= (255 // sm)
     snapshot = torch.from_numpy(snapshot)
 
     return snapshot
@@ -347,7 +347,7 @@ def create_dir(directory: str):
             os.makedirs(directory)
 
     except OSError:
-        print('Error: Creating directory. ' +  directory)
+        print('Error: Creating directory. ' + directory)
         raise OSError
 
 
@@ -356,11 +356,11 @@ class Worker:
     Worker class, generate tensors.
     '''
     # data used for the class
-    zones = pd.read_csv('dataset/taxi_zone_lookup.csv')
+    zones = pd.read_csv('rawcsv/taxi_zone_lookup.csv')
 
     # very important globals:
     yellow_zone = zones.loc[zones['Borough'] == 'Manhattan']
-    
+
     image_size = yellow_zone.shape[0]
 
     # create a mapping {'district_id_in_data_source': index from 0 to 68}
@@ -418,21 +418,11 @@ class Worker:
         Remove rows in the table(pandas dataframe) if either of its location ID
         is not in Worker.mp
 
-        The current supported ids(keys of dictionary) are:
-        mapping = {
-                    '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
-                    '43': 6,   '45': 7,   '48': 8,   '50': 9,   '68': 10,  '74': 11,
-                    '75': 12,  '79': 13,  '87': 14,  '88': 15,  '90': 16, '100': 17,
-                    '103': 18, '104': 19, '105': 20, '107': 21, '113': 22, '114': 23,
-                    '116': 24, '120': 25, '125': 26, '127': 27, '128': 28, '137': 29,
-                    '140': 30, '141': 31, '142': 32, '143': 33, '144': 34, '148': 35,
-                    '151': 36, '152': 37, '153': 38, '158': 39, '161': 40, '162': 41,
-                    '163': 42, '164': 43, '166': 44, '170': 45, '186': 46, '194': 47,
-                    '202': 48, '209': 49, '211': 50, '224': 51, '229': 52, '230': 53,
-                    '231': 54, '232': 55, '233': 56, '234': 57, '236': 58, '237': 59,
-                    '238': 60, '239': 61, '243': 62, '244': 63, '246': 64, '249': 65,
-                    '261': 66, '262': 67, '263': 68
-        }
+        Args:
+            table: pandas DataFrame
+        
+        Returns:
+            table: pandas DataFrame
         '''
         # print(f'before cleansing table size: {table.shape}')
         mapping = {
@@ -452,7 +442,6 @@ class Worker:
         
         table = table.loc[(table['pulocationid'].isin(mapping.keys())) &
                           (table['dolocationid'].isin(mapping.keys()))]
-
         # print(f'after cleansing table size: {table.shape}')
 
         return table
@@ -505,9 +494,10 @@ class Worker:
 
             # if viz is true, then save images to separate folder
             if self.viz:
-                
+
                 image = gen_image_fast(p_layer, n_layer, f_layer)
 
                 # resize to x50
-                vimage = image.resize((345,345))
-                vimage.save(image_path)        
+                # vimage = image.resize((345,345))
+                image.save(image_path)
+  
