@@ -32,6 +32,8 @@ import torch
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 from glob import iglob
+from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 # import models
 from models import *
@@ -140,8 +142,8 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
               train_loader, valid_loader, hyps,
-              clip=5, stop_criterion=5,
-              show_every_n_batches=100):
+              clip=5, stop_criterion=20,
+              show_every_n_batches=1000):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -171,6 +173,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
     train_losses = []
 
+    # for plot:
+    tl = []
+    vl = []
+
     model.train()
 
     print("Training for %d epoch(s)..." % n_epochs)
@@ -178,11 +184,17 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
         hidden = model.init_hidden(batch_size)
 
+        # early stop mechanism:
+        if early_stop_count >= stop_criterion:
+            print(
+                f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
+            break
+
         for batch_i, (inputs, labels) in enumerate(train_loader, 1):
 
             # make sure you iterate over completely full batches, only
             n_batches = len(train_loader.dataset) // batch_size
-            if(batch_i > n_batches):
+            if batch_i > n_batches :
                 break
 
             # forward, back prop
@@ -222,13 +234,21 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
                 model.train()
                 avg_val_loss = np.mean(valid_losses)
+                avg_tra_loss = np.mean(train_losses)
+
+                tl.append(avg_tra_loss)
+                vl.append(avg_val_loss)
                 # printing loss stats
-                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {np.mean(batch_losses)}  Val Loss {avg_val_loss}')
+                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss}  Val Loss {avg_val_loss}')
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
                     print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
-
+                    valid_loss_min = avg_val_loss
+                    early_stop_count = 0
+                
+                else:
+                    early_stop_count += 1
                     torch.save(model.state_dict(),
                                f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
 
@@ -238,14 +258,14 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
     # returns a trained model
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
-    return model
+    return model, (tl, vl)
 
 
 if __name__ == '__main__':
 
     # Data params
     # Sequence Length
-    sequence_length = 12  # of time slices in a sequence
+    sequence_length = 24  # of time slices in a sequence
     # Batch Size
     batch_size = 2
     # Gradient clip
@@ -255,7 +275,7 @@ if __name__ == '__main__':
     # Number of Epochs
     epochs = 20
     # Learning Rate
-    learning_rate = 0.001
+    learning_rate = 0.0001
 
     # Model parameters
     # Vocab size
@@ -263,11 +283,11 @@ if __name__ == '__main__':
     # Output size
     output_size = input_size
     # Hidden Dimension
-    hidden_dim = 256
+    hidden_dim = 512
     # Number of RNN Layers
     n_layers = 2
     # Dropout probability
-    drop_prob = 0.5
+    drop_prob = 0.4
     # Show stats for every n number of batches
     senb = 3000
 
@@ -294,11 +314,13 @@ if __name__ == '__main__':
     train_states = []
     valid_states = []
 
-    for state in train_iter:
+    print('Loading dataset...')
+    print('Loading training set...')
+    for state in tqdm(train_iter, ascii=True):
         state = torch.load(state).numpy()
         train_states.append(state)
-
-    for state in valid_iter:
+    print('Loading validation set...')
+    for state in tqdm(valid_iter, ascii=True):
         state = torch.load(state).numpy()
         valid_states.append(state)
 
@@ -310,8 +332,9 @@ if __name__ == '__main__':
     train_states = train_states.astype('float32')
     valid_states = valid_states.astype('float32')
 
-    train_loader = batch_data(train_states, sequence_length, batch_size)
-    valid_loader = batch_data(valid_states, sequence_length, batch_size)
+    train_loader = batch_dataset(train_states, sequence_length, batch_size)
+    valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
+    print('Dataset Loaded.')
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
@@ -325,5 +348,13 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # start training
-    trained_model = train_lstm(model, batch_size, optimizer, criterion, epochs,
-                               train_loader, valid_loader, hyps)
+    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion, epochs,
+                                     train_loader, valid_loader, hyps)
+
+    # loss plot
+    tl, vl = tlvl
+    x = np.arange(len(tl))
+
+    plt.plot(x, tl, 'r-')
+    plt.plot(x, vl, 'b-')
+    plt.show()
