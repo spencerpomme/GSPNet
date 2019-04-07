@@ -22,8 +22,8 @@ def f(worker):
 if __name__ == '__main__':
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_08',
-                                 ('2017-08-01 00:00:00', '2017-09-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2017_07',
+                                 ('2017-07-01 00:00:00', '2017-08-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
@@ -40,13 +40,11 @@ if __name__ == '__main__':
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
             wp = worker.Worker(k, tables[k], rule.TimeSlice(
-                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}_val', True)
+                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
             workers.append(wp)
 
-        print(f'Start generating tensors with freq {freq}at {time.ctime()}\n')
+        print(f'Start generating tensors with freq {freq} at {time.ctime()}\n')
         start = time.time()
-
-        ############################### code start here ##############################
 
         # create a process pool
         pn = cpu_count()
@@ -62,5 +60,5 @@ if __name__ == '__main__':
         print(
             f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :2f} seconds.\n\n')
     total_end = time.time()
-    print(
-        f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
+
+    print(f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
