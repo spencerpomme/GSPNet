@@ -37,17 +37,19 @@ from numba.typed import Dict
 
 # column name: index mapping
 colmap = {
-            'tripid': 0,
-            'tpep_pickup_datetime': 1,
-            'tpep_dropoff_datetime': 2,
-            'pulocationid': 3,
-            'dolocationid': 4
-        }
+    'tripid': 0,
+    'tpep_pickup_datetime': 1,
+    'tpep_dropoff_datetime': 2,
+    'pulocationid': 3,
+    'dolocationid': 4
+}
 
 # helper functions
 # Function gen_snap_layers is hard to optimize for the slicing part depends heavily on
 # timestamp based selection. This functionality would be rather cumbersome if to
 # be done in numpy.
+
+
 def gen_snap_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
@@ -61,14 +63,13 @@ def gen_snap_layers(table, bound):
     assert type(bound) == tuple
     left = bound[0]
     right = bound[1]
-    
+
     # The .loc operation below is moved to be executed in CSVSource initialization.
     # table = table.loc[:, ['tripid',
     #                                 'tpep_pickup_datetime',
     #                                 'tpep_dropoff_datetime',
     #                                 'pulocationid',
     #                                 'dolocationid']]
-
 
     # The condition of making snapshot should be:
     # AT LEAST ONE temporal end of a trip should be within the bounds:
@@ -85,18 +86,19 @@ def gen_snap_layers(table, bound):
     # Use the interval to 'catch' corresponding trips.
     # future layer
     f_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < right) &
-                             (temp_snap['tpep_pickup_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] >= right)]
+                            (temp_snap['tpep_pickup_datetime'] >= left) &
+                            (temp_snap['tpep_dropoff_datetime'] >= right)]
     # past layer
     p_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < left) &
-                             (temp_snap['tpep_dropoff_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] < right)]
+                            (temp_snap['tpep_dropoff_datetime'] >= left) &
+                            (temp_snap['tpep_dropoff_datetime'] < right)]
     # now layer
     n_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] < right)]
+                            (temp_snap['tpep_dropoff_datetime'] < right)]
 
     # Their count should add up to total trips caught
-    assert temp_snap.shape[0] == f_layer.shape[0] + p_layer.shape[0] + n_layer.shape[0]
+    assert temp_snap.shape[0] == f_layer.shape[0] + \
+        p_layer.shape[0] + n_layer.shape[0]
 
     return p_layer, n_layer, f_layer
 
@@ -112,7 +114,8 @@ def gen_image(p_layer, n_layer, f_layer):
         A PIL image.
     '''
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int32')
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 3], dtype='int32')
 
     # unexpected zones
     left_zones = set()
@@ -120,7 +123,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # future-Red: 0
     for _, row in f_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 0] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 0] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -128,7 +132,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # past-Green: 1
     for _, row in p_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 1] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 1] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -136,7 +141,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # now-Blue: 2
     for _, row in n_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 2] += 1
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 2] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -160,7 +166,8 @@ def gen_tensor(p_layer, n_layer, f_layer):
         A torch tensor.
     '''
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='float64')
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 3], dtype='float64')
 
     # unexpected zones
     left_zones = set()
@@ -168,7 +175,8 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # future-Red: 0
     for _, row in f_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 0] += 1.0
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 0] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -176,7 +184,8 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # past-Green: 1
     for _, row in p_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 1] += 1.0
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 1] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -184,13 +193,14 @@ def gen_tensor(p_layer, n_layer, f_layer):
     # now-Blue: 2
     for _, row in n_layer.iterrows():
         try:
-            snapshot[Worker.mp[str(row['pulocationid'])], Worker.mp[str(row['dolocationid'])], 2] += 1.0
+            snapshot[Worker.mp[str(row['pulocationid'])],
+                     Worker.mp[str(row['dolocationid'])], 2] += 1.0
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
 
     # set all empty
-    
+
     # normalize
     sm = snapshot.max()
     # print(sm)
@@ -202,7 +212,7 @@ def gen_tensor(p_layer, n_layer, f_layer):
 
 # adjacency matrix creater function
 @jit(parallel=True)
-def create_adjacency_matrix(arr, am, ly:int):
+def create_adjacency_matrix(arr, am, ly: int):
     '''
     Fill in values into the provided am(adjacency matrxi) with the connection info
     numpy array. Copy a list here for performance
@@ -217,20 +227,20 @@ def create_adjacency_matrix(arr, am, ly:int):
         am: a filled adjacency matrix 2d numpy array
     '''
     mapping = {
-                    4: 0,   12: 1,   13: 2,   24: 3,   41: 4,   42: 5,
-                    43: 6,   45: 7,   48: 8,   50: 9,   68: 10,  74: 11,
-                    75: 12,  79: 13,  87: 14,  88: 15,  90: 16, 100: 17,
-                    103: 18, 104: 19, 105: 20, 107: 21, 113: 22, 114: 23,
-                    116: 24, 120: 25, 125: 26, 127: 27, 128: 28, 137: 29,
-                    140: 30, 141: 31, 142: 32, 143: 33, 144: 34, 148: 35,
-                    151: 36, 152: 37, 153: 38, 158: 39, 161: 40, 162: 41,
-                    163: 42, 164: 43, 166: 44, 170: 45, 186: 46, 194: 47,
-                    202: 48, 209: 49, 211: 50, 224: 51, 229: 52, 230: 53,
-                    231: 54, 232: 55, 233: 56, 234: 57, 236: 58, 237: 59,
-                    238: 60, 239: 61, 243: 62, 244: 63, 246: 64, 249: 65,
-                    261: 66, 262: 67, 263: 68
+        4: 0,   12: 1,   13: 2,   24: 3,   41: 4,   42: 5,
+        43: 6,   45: 7,   48: 8,   50: 9,   68: 10,  74: 11,
+        75: 12,  79: 13,  87: 14,  88: 15,  90: 16, 100: 17,
+        103: 18, 104: 19, 105: 20, 107: 21, 113: 22, 114: 23,
+        116: 24, 120: 25, 125: 26, 127: 27, 128: 28, 137: 29,
+        140: 30, 141: 31, 142: 32, 143: 33, 144: 34, 148: 35,
+        151: 36, 152: 37, 153: 38, 158: 39, 161: 40, 162: 41,
+        163: 42, 164: 43, 166: 44, 170: 45, 186: 46, 194: 47,
+        202: 48, 209: 49, 211: 50, 224: 51, 229: 52, 230: 53,
+        231: 54, 232: 55, 233: 56, 234: 57, 236: 58, 237: 59,
+        238: 60, 239: 61, 243: 62, 244: 63, 246: 64, 249: 65,
+        261: 66, 262: 67, 263: 68
     }
-        
+
     for i in range(arr.shape[0]):
         # this twisted roundabout is due to not supported feature for iterating 2d arrays:
         am[mapping[arr[i, :][3]],
@@ -278,7 +288,8 @@ def gen_image_fast(p_layer, n_layer, f_layer):
     f_layer = f_layer.to_numpy()[1:, :]
 
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int16')
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 3], dtype='int16')
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
@@ -315,7 +326,8 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
     f_layer = f_layer.to_numpy()[1:, :]
 
     # create a snapshot
-    snapshot = np.zeros([Worker.image_size, Worker.image_size, 3], dtype='int64')
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 3], dtype='int64')
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
@@ -364,14 +376,14 @@ class Worker:
     image_size = yellow_zone.shape[0]
 
     # create a mapping {'district_id_in_data_source': index from 0 to 68}
-    real_id = list(map(str, list(yellow_zone.loc[:,'LocationID'])))
+    real_id = list(map(str, list(yellow_zone.loc[:, 'LocationID'])))
     conv_id = [i for i in range(image_size)]
 
     # create matrix id mapping
     assert len(real_id) == len(conv_id)
     mp = dict(zip(real_id, conv_id))
 
-    def __init__(self, pid:int, table, rule, destin:str, viz:bool):
+    def __init__(self, pid: int, table, rule, destin: str, viz: bool):
         '''
         Init method for Worker.
 
@@ -386,7 +398,7 @@ class Worker:
             viz:    Boolean value, decide create visualization image of tonsors
                     or not
         '''
-        
+
         self.pid = pid
         self.table = self.clean_rows(table)
         self.rule = rule
@@ -402,7 +414,6 @@ class Worker:
             self.visual_dir = destin + '/viz_images'
             create_dir(self.visual_dir)
 
-
     def __repr__(self):
         '''
         Representation method for Worker object.
@@ -411,7 +422,6 @@ class Worker:
                  destination: {self.tensor_dir}\n\
                  visualize: {self.viz}\n\
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
-
 
     def clean_rows(self, table):
         '''
@@ -426,26 +436,26 @@ class Worker:
         '''
         # print(f'before cleansing table size: {table.shape}')
         mapping = {
-                    '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
-                    '43': 6,   '45': 7,   '48': 8,   '50': 9,   '68': 10,  '74': 11,
-                    '75': 12,  '79': 13,  '87': 14,  '88': 15,  '90': 16, '100': 17,
-                    '103': 18, '104': 19, '105': 20, '107': 21, '113': 22, '114': 23,
-                    '116': 24, '120': 25, '125': 26, '127': 27, '128': 28, '137': 29,
-                    '140': 30, '141': 31, '142': 32, '143': 33, '144': 34, '148': 35,
-                    '151': 36, '152': 37, '153': 38, '158': 39, '161': 40, '162': 41,
-                    '163': 42, '164': 43, '166': 44, '170': 45, '186': 46, '194': 47,
-                    '202': 48, '209': 49, '211': 50, '224': 51, '229': 52, '230': 53,
-                    '231': 54, '232': 55, '233': 56, '234': 57, '236': 58, '237': 59,
-                    '238': 60, '239': 61, '243': 62, '244': 63, '246': 64, '249': 65,
-                    '261': 66, '262': 67, '263': 68
+            '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
+            '43': 6,   '45': 7,   '48': 8,   '50': 9,   '68': 10,  '74': 11,
+            '75': 12,  '79': 13,  '87': 14,  '88': 15,  '90': 16, '100': 17,
+            '103': 18, '104': 19, '105': 20, '107': 21, '113': 22, '114': 23,
+            '116': 24, '120': 25, '125': 26, '127': 27, '128': 28, '137': 29,
+            '140': 30, '141': 31, '142': 32, '143': 33, '144': 34, '148': 35,
+            '151': 36, '152': 37, '153': 38, '158': 39, '161': 40, '162': 41,
+            '163': 42, '164': 43, '166': 44, '170': 45, '186': 46, '194': 47,
+            '202': 48, '209': 49, '211': 50, '224': 51, '229': 52, '230': 53,
+            '231': 54, '232': 55, '233': 56, '234': 57, '236': 58, '237': 59,
+            '238': 60, '239': 61, '243': 62, '244': 63, '246': 64, '249': 65,
+            '261': 66, '262': 67, '263': 68
         }
-        
+
         table = table.loc[(table['pulocationid'].isin(mapping.keys())) &
                           (table['dolocationid'].isin(mapping.keys()))]
         # print(f'after cleansing table size: {table.shape}')
 
         return table
-    
+
     def generate(self):
         '''
         Generate tensors given the data source and processing rules.
@@ -481,12 +491,16 @@ class Worker:
 
             # tensor save path
             tensor_path = os.path.abspath(
-                self.tensor_dir + f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.pkl'.replace(' ', '_').replace(':',';')
+                self.tensor_dir +
+                f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.pkl'.replace(
+                    ' ', '_').replace(':', ';')
             )
 
             # image save path
             image_path = os.path.abspath(
-                self.visual_dir + f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.jpg'.replace(' ', '_').replace(':',';')
+                self.visual_dir +
+                f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.jpg'.replace(
+                    ' ', '_').replace(':', ';')
             )
 
             # save method 1 => time for 1 day is: 7m 47s
@@ -500,4 +514,3 @@ class Worker:
                 # resize to x50
                 # vimage = image.resize((345,345))
                 image.save(image_path)
-  

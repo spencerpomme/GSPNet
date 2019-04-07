@@ -34,13 +34,13 @@ from multiprocessing import cpu_count
 from tqdm import tqdm
 
 
-
 # 3 classes in this module
 class Source:
     '''
     Base class of data source.
 
     '''
+
     def __init__(self, table):
         '''
         Base init method, data should be directely convertible to tensors.
@@ -50,20 +50,17 @@ class Source:
         '''
         self.table = table
 
-
     def __repr__(self):
         '''
         Base representation method.
         '''
         return f'Source: {self.__class__} of type {type(data)}'
 
-
     def describe(self):
         '''
         Wrapper of table describe method.
         '''
         self.table.describe()
-
 
     def format_time_cols(self):
         '''
@@ -86,6 +83,7 @@ class CSVSource(Source):
     to there user, the Worker class. This somehow twisted design
     is for the good of utilizing parallel comptuing in tensor generation.
     '''
+
     def __init__(self, file: list):
         '''
         Init method for csv source.
@@ -101,7 +99,6 @@ class CSVSource(Source):
         self.shape = None
         self.dtypes = None
 
-
     def __repr__(self):
         '''
          Representation method for csv source.
@@ -113,7 +110,6 @@ class CSVSource(Source):
 
         return f'CSV file source: {self.file} | Shape:  {shape[0], shape[1]}'
 
-    
     def __len__(self):
         '''
         Returns the total number of rows ot self.table.
@@ -127,7 +123,6 @@ class CSVSource(Source):
             total_rows = 0
 
         return total_rows
-        
 
     def load(self):
         '''
@@ -138,11 +133,11 @@ class CSVSource(Source):
              # read csv file and format time related colums
             temp = pd.read_csv(self.file)
             self.table = temp.loc[:, ['tripid',
-                                    'tpep_pickup_datetime',
-                                    'tpep_dropoff_datetime',
-                                    'pulocationid',
-                                    'dolocationid']]
-                                    
+                                      'tpep_pickup_datetime',
+                                      'tpep_dropoff_datetime',
+                                      'pulocationid',
+                                      'dolocationid']]
+
             self.shape = self.table.shape
             self.format_time_cols()
             self.dtypes = self.table.dtypes
@@ -151,7 +146,6 @@ class CSVSource(Source):
             print(e)
             print(f'Provided file {file} is not a valid file source.')
 
-    
     def head(self, first_n_rows: int):
         '''
         Wrapper of table head method.
@@ -178,8 +172,8 @@ class DatabaseSource(Source):
     '''
 
     def __init__(self, tbname, big_bound=('2017-01-01 00:00:00', '2018-01-01 00:00:00'),
-                 host:str='localhost', dbname:str='taxi',
-                 user:str='postgres', concurrent:bool=True):
+                 host: str = 'localhost', dbname: str = 'taxi',
+                 user: str = 'postgres', concurrent: bool = True):
         '''
         Init method for database source.
 
@@ -201,7 +195,8 @@ class DatabaseSource(Source):
         self.concurrent = concurrent
 
         # connect to the database
-        self.conn = psycopg2.connect(f'host={self.host} dbname={self.dbname} user={self.user}')
+        self.conn = psycopg2.connect(
+            f'host={self.host} dbname={self.dbname} user={self.user}')
         self.cur = self.conn.cursor()
 
         # time rule attributes for concurrent load strategy:
@@ -223,7 +218,6 @@ class DatabaseSource(Source):
         # data source info
         # self.total_rows = self._sumrows()
 
-
     def __repr__(self, verbose=False):
         '''
         Representation method for database source.
@@ -243,16 +237,14 @@ class DatabaseSource(Source):
 
         return info
 
-
     def __len__(self):
         '''
         Returns the total number of rows ot self.table.
         '''
         # sql = "select count(*) from cleaned_small_yellow_2017;"
         # temp_df = pd.read_sql_query(sql, self.conn)
-        
-        return self.total_rows
 
+        return self.total_rows
 
     def load(self):
         '''
@@ -279,7 +271,8 @@ class DatabaseSource(Source):
             start = time.time()
 
             for i, query in self.queries.items():
-                t = Thread(target=DatabaseSource._concurrent_read, args=(i, self.table_pool, query))
+                t = Thread(target=DatabaseSource._concurrent_read,
+                           args=(i, self.table_pool, query))
                 thread_pool.put(t)
 
             progress = tqdm(total=q_size, ascii=True)
@@ -301,14 +294,15 @@ class DatabaseSource(Source):
                 # join finished threads
                 for t in thread_buffer:
                     t.join()
-                
+
                 # clear finished threads from thread buffer
                 thread_buffer = []
-            
+
             # close progress bar
             progress.close()
             end = time.time()
-            print(f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
+            print(
+                f'Ended at {time.ctime()}, total time {end - start:.2f} seconds.')
 
         else:
             sql = f"select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid \
@@ -324,12 +318,13 @@ class DatabaseSource(Source):
             self.table_pool[0] = self.table
 
             bare_end = time.time()
-            print(f'Ended at {time.ctime()}, total time {bare_end - bare_start:.2f} seconds.')
+            print(
+                f'Ended at {time.ctime()}, total time {bare_end - bare_start:.2f} seconds.')
 
-    
     # helper functions
+
     @staticmethod
-    def _concurrent_read(id:int, df_pool:dict, query:str):
+    def _concurrent_read(id: int, df_pool: dict, query: str):
         '''
         Create a new connector to database, each for one thread.
 
@@ -347,8 +342,7 @@ class DatabaseSource(Source):
         # cursor.execute(query)
         df_pool[id] = pd.read_sql_query(query, conn)
 
-    
-    def _concurrent_split(self, granularity:str='1W-MON'):
+    def _concurrent_split(self, granularity: str = '1W-MON'):
         '''
         Saperate a query that returns a potentially large table into several
         sub queries and then do them concurrently. 
@@ -365,7 +359,8 @@ class DatabaseSource(Source):
         Returns:
             queries: a list containing sql string initialized with sub time bounds
         '''
-        subs = self._process_granularity(self.big_bound[0], self.big_bound[1], freq=granularity)
+        subs = self._process_granularity(
+            self.big_bound[0], self.big_bound[1], freq=granularity)
         self.sub_ranges = subs
         queries = {}
 
@@ -376,8 +371,7 @@ class DatabaseSource(Source):
 
         return queries
 
-    
-    def _construct_sub_sql(self, stp:str, etp:str):
+    def _construct_sub_sql(self, stp: str, etp: str):
         '''
         A private helper function to construct sql query, called another
         helper function _construct_split.
@@ -395,8 +389,7 @@ class DatabaseSource(Source):
         return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from {self.tbname} "
                 f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
 
-    
-    def _process_granularity(self, stp:str, etp:str, freq:str):
+    def _process_granularity(self, stp: str, etp: str, freq: str):
         '''
         Function to divide a table according freq (the concurrent time unit).
 
@@ -427,7 +420,8 @@ class DatabaseSource(Source):
         Raises:
             AssertionError
         '''
-        assert freq in ['B', 'C', 'D', 'W', '1W-MON', 'M'], 'Only supported frequencies allowed.'
+        assert freq in ['B', 'C', 'D', 'W', '1W-MON',
+                        'M'], 'Only supported frequencies allowed.'
         bounds = pd.date_range(stp, etp, freq=freq)
         # print(bounds[0], bounds[-1])
 
@@ -440,12 +434,11 @@ class DatabaseSource(Source):
 
         # rounded time interval
         subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
-        
+
         # return rounded time intervals
         return subs
 
-
-    def subset(self, stp:str, etp:str):
+    def subset(self, stp: str, etp: str):
         '''
         Make a subset from the table according to time.
         This function is a part of the parallel IO of tensor generation.
@@ -466,7 +459,7 @@ class DatabaseSource(Source):
         '''
         # regular expression that guarantee stp and etp are of right format
         pattern = self.pattern
-        
+
         if pattern.match(self.stp) and pattern.match(self.etp):
             sql = f"""
                     select tripid, tpep_pickup_datetime, tpep_dropoff_datetime, pulocationid, dolocationid from 
@@ -481,7 +474,6 @@ class DatabaseSource(Source):
 
         return sub_table
 
-
     def _weekly_parallel(self):
         '''
         A convenient wrapper of concurrent load using a week as deviding unit.
@@ -493,7 +485,6 @@ class DatabaseSource(Source):
             table_pool: A pool of sub tables
         '''
         return self._concurrent_split('1W-MON')
-
 
     def _monthly_parallel(self):
         '''
@@ -507,13 +498,11 @@ class DatabaseSource(Source):
         '''
         return self._concurrent_split('1M')
 
-
     def _sumrows(self):
         '''
         Sum up sub table rows in self.table_pool.
         '''
         raise NotImplementedError
-
 
     def _get_columns(self):
         '''
@@ -539,4 +528,3 @@ class DatabaseSource(Source):
         column_info = {name: dtype for (name, dtype) in pair}
 
         return column_info
-

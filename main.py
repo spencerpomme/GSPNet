@@ -31,14 +31,16 @@ if __name__ == '__main__':
     tb_size = len(tables)
 
     total_start = time.time()
-    for freq in ['15min']:  # seems that only interval between 10min and 15min are usable.
+    # seems that only interval between 10min and 15min are usable.
+    for freq in ['15min']:
         # multi processing generate data
 
         workers = []
         for k in tables.keys():
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
-            wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
+            wp = worker.Worker(k, tables[k], rule.TimeSlice(
+                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
             workers.append(wp)
 
         print(f'Start generating tensors with freq {freq}at {time.ctime()}\n')
@@ -57,6 +59,8 @@ if __name__ == '__main__':
             pool.join()
 
         end = time.time()
-        print(f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :2f} seconds.\n\n')
+        print(
+            f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :2f} seconds.\n\n')
     total_end = time.time()
-    print(f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
+    print(
+        f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
