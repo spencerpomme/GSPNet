@@ -414,6 +414,7 @@ class Worker:
             self.visual_dir = destin + '/viz_images'
             create_dir(self.visual_dir)
 
+
     def __repr__(self):
         '''
         Representation method for Worker object.
@@ -422,6 +423,7 @@ class Worker:
                  destination: {self.tensor_dir}\n\
                  visualize: {self.viz}\n\
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
+
 
     def clean_rows(self, table):
         '''
@@ -455,6 +457,7 @@ class Worker:
         # print(f'after cleansing table size: {table.shape}')
 
         return table
+
 
     def generate(self):
         '''
