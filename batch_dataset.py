@@ -25,14 +25,11 @@ import numpy as np
 import pandas as pd
 import torch
 import glob
-
-from collections import Counter
 from torch.utils.data import TensorDataset, DataLoader
 
 
 # generate training pair from tensors
-# generate training pair from tensors
-def batch_data(states, sequence_length, batch_size):
+def batch_dataset(states, sequence_length, batch_size):
     """
     Batch the neural network data using DataLoader
 
@@ -68,6 +65,7 @@ def batch_data(states, sequence_length, batch_size):
 
 if __name__ == '__main__':
 
+    # tests:
     tensor_dir = 'tensor_dataset/nn_test_15min/tensors'
     visual_dir = 'tensor_dataset/nn_test_15min/viz_images'
 
@@ -84,4 +82,4 @@ if __name__ == '__main__':
     states = states.astype('float32')
     states.shape
 
-    data_loader = batch_data(states, 12, 2)
+    data_loader = batch_dataset(states, 12, 2)

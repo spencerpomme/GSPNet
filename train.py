@@ -21,28 +21,81 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ##============================================================================##
 
 '''
-
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pickle as pkl
 import matplotlib.pyplot as plt
 import os
 import time
 import torch
+
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
-from glob import glob, iglob
+from glob import iglob
+
+# import models
+from models import *
 
 
 # helper functions
-def save_model(filename, model):
+def save_model(filename:str, model):
+    '''
+    Save model to local file.
+
+    Args:
+        filename: file name string
+        model: trained model
+    '''
     save_filename = os.path.splitext(os.path.basename(filename))[0] + '.pt'
     torch.save(model, save_filename)
 
 
-def load_model(filename):
+def load_model(filename:str):
+    '''
+    Load trained model.
+
+    Args:
+        filename: file name string
+
+    Returns:
+        loaded torch model
+    '''
     save_filename = os.path.splitext(os.path.basename(filename))[0] + '.pt'
     return torch.load(save_filename)
+
+
+def batch_dataset(states, sequence_length, batch_size):
+    """
+    Batch the neural network data using DataLoader
+
+    Args:
+        states:
+        sequence_length: The sequence length of each batch
+        batch_size: The size of each batch; the number of sequences in a batch
+
+    Return:
+        DataLoader with batched data
+    """
+    num_batches = len(states) // batch_size
+
+    # only full batches
+    states = states[: num_batches * batch_size]
+
+    # TODO: Implement function
+    features, targets = [], []
+
+    for idx in range(0, (len(states) - sequence_length)):
+        features.append(states[idx: idx + sequence_length])
+        targets.append(states[idx + sequence_length])
+
+    data = TensorDataset(torch.from_numpy(np.array(features)),
+                         torch.from_numpy(np.array(targets)))
+
+    data_loader = torch.utils.data.DataLoader(
+        data, shuffle=False, batch_size=batch_size, num_workers=0)
+
+    # return a dataloader
+    return data_loader
 
 
 def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
@@ -85,25 +138,27 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     return loss.item(), h
 
 
-def train_rnn(model, batch_size, optimizer, criterion, n_epochs,
-              train_loader, valid_loader, clip=5, stop_criterion=5,
+def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
+              train_loader, valid_loader, hyps,
+              clip=5, stop_criterion=5,
               show_every_n_batches=100):
     '''
-    Train a RNN model with the given hyperparameters.
+    Train a LSTM model with the given hyperparameters.
 
     Args:
-        model:
-        batch_size:
-        optimizer:
-        criterion:
-        n_epochs:
-        train_loader:
-        valid_loader:
-        clip:
-        show_every_batches:
+        model:              The PyTorch Module that holds the neural network
+        batch_size:         batch size, integer
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        train_loader:       Training data loader
+        valid_loader:       Validation data loader
+        hyps:               A dict containing model parameters
+        clip:               Clip the overly large gradient
+        show_every_batches: Display loss every this number of time steps
 
     Returns:
-        A trained model
+        A trained model. The best model will also be saved locally.
     '''
     # clear cache
     torch.cuda.empty_cache()
@@ -174,7 +229,8 @@ def train_rnn(model, batch_size, optimizer, criterion, n_epochs,
                 if avg_val_loss < valid_loss_min:
                     print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
 
-                    torch.save(model.state_dict(), './trained_models/best_model.pt')
+                    torch.save(model.state_dict(),
+                               f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
 
                 train_losses = []
                 valid_losses = []
@@ -187,4 +243,87 @@ def train_rnn(model, batch_size, optimizer, criterion, n_epochs,
 
 if __name__ == '__main__':
 
-    print('In main of train.py')
+    # Data params
+    # Sequence Length
+    sequence_length = 12  # of time slices in a sequence
+    # Batch Size
+    batch_size = 2
+    # Gradient clip
+    clip = 5
+
+    # Training parameters
+    # Number of Epochs
+    epochs = 20
+    # Learning Rate
+    learning_rate = 0.001
+
+    # Model parameters
+    # Vocab size
+    input_size = 69*69*3
+    # Output size
+    output_size = input_size
+    # Hidden Dimension
+    hidden_dim = 256
+    # Number of RNN Layers
+    n_layers = 2
+    # Dropout probability
+    drop_prob = 0.5
+    # Show stats for every n number of batches
+    senb = 3000
+
+    # wrap essential info into dictionary:
+    hyps = {
+        'sl': sequence_length,
+        'bs': batch_size,
+        'lr': learning_rate,
+        'hd': hidden_dim,
+        'nl': n_layers,
+        'dp': drop_prob
+    }
+
+    # Environment parameter
+    train_on_gpu = torch.cuda.is_available()
+
+    # Initialize data loaders
+    train_dir = 'tensor_dataset/nn_test_15min/tensors'
+    valid_dir = 'tensor_dataset/nn_test_15min_val/tensors'
+
+    train_iter = iglob(train_dir + '/*')
+    valid_iter = iglob(valid_dir + '/*')
+
+    train_states = []
+    valid_states = []
+
+    for state in train_iter:
+        state = torch.load(state).numpy()
+        train_states.append(state)
+
+    for state in valid_iter:
+        state = torch.load(state).numpy()
+        valid_states.append(state)
+
+    train_states = np.array(train_states)
+    valid_states = np.array(valid_states)
+
+    train_states = train_states.reshape((len(train_states), -1))
+    valid_states = valid_states.reshape((len(valid_states), -1))
+    train_states = train_states.astype('float32')
+    valid_states = valid_states.astype('float32')
+
+    train_loader = batch_data(train_states, sequence_length, batch_size)
+    valid_loader = batch_data(valid_states, sequence_length, batch_size)
+
+    # initialize model
+    model = VanillaStateRNN(input_size, output_size, hidden_dim,
+                            n_layers=n_layers, drop_prob=drop_prob,
+                            lr=learning_rate)
+    if train_on_gpu:
+        model = model.cuda()
+
+    # optimizer and criterion(loss function)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.MSELoss()
+
+    # start training
+    trained_model = train_lstm(model, batch_size, optimizer, criterion, epochs,
+                               train_loader, valid_loader, hyps)
