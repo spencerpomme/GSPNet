@@ -1,8 +1,8 @@
-import timeslice                    
-import timeslice.source as source   
-import timeslice.rule  as rule      
+import timeslice
+import timeslice.source as source
+import timeslice.rule as rule
 import timeslice.worker as worker
-import timeslice.viz as viz # to be done
+import timeslice.viz as viz  # to be done
 
 import torch
 import time
@@ -19,12 +19,11 @@ def f(worker):
     worker.generate()
 
 
-
 if __name__ == '__main__':
 
-
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2018-01-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2017_10',
+                                 ('2017-10-01 00:00:00', '2017-11-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
@@ -32,31 +31,31 @@ if __name__ == '__main__':
     tb_size = len(tables)
 
     total_start = time.time()
-    for freq in ['30min', '20min', '15min', '10min', '5min']:
+    for freq in ['15min']:  # seems that only interval between 10min and 15min are usable.
         # multi processing generate data
-        
+
         workers = []
         for k in tables.keys():
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
-            wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/full_year_{freq}', True)
+            wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
             workers.append(wp)
 
         print(f'Start generating tensors with freq {freq}at {time.ctime()}\n')
         start = time.time()
 
         ############################### code start here ##############################
-        
+
         # create a process pool
         pn = cpu_count()
         print(f'Creating pool with {pn} processes.')
-        
+
         with Pool(pn) as pool:
             pool.map(f, workers)
 
             pool.close()
             pool.join()
-        
+
         end = time.time()
         print(f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :2f} seconds.\n\n')
     total_end = time.time()
