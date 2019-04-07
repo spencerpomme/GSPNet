@@ -59,10 +59,12 @@ def batch_data(states, sequence_length, batch_size):
     data = TensorDataset(torch.from_numpy(np.array(features)),
                          torch.from_numpy(np.array(targets)))
 
-    data_loader = torch.utils.data.DataLoader(data, shuffle=False, batch_size=batch_size, num_workers=0)
+    data_loader = torch.utils.data.DataLoader(
+        data, shuffle=False, batch_size=batch_size, num_workers=0)
 
     # return a dataloader
     return data_loader
+
 
 if __name__ == '__main__':
 
