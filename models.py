@@ -53,24 +53,24 @@ class VanillaStateRNN(nn.Module):
             n_layers:       number of lstm layers
             drop_prob:      drop out rate
             lr:             learning rate
-        '''        
+        '''
         super().__init__()
         self.output_size = output_size
         self.hidden_dim = hidden_dim
         self.n_layers = n_layers
         self.drop_prob = drop_prob
         self.lr = lr
-        
+
         # define the LSTM
         self.lstm = nn.LSTM(input_size, self.hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
-        
+
         # dropout layer
         self.dropout = nn.Dropout(self.drop_prob)
-        
+
         # define the final, fully-connected output layer
         self.fc = nn.Linear(hidden_dim, self.output_size)
-      
-    
+
+
     def forward(self, x, hidden):
         '''
         Forward pass through the network. 
@@ -88,18 +88,17 @@ class VanillaStateRNN(nn.Module):
         lstm_out, hidden = self.lstm(x, hidden)
         lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim)
         out = self.fc(lstm_out)
-        
+
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
-
         # get the last output, because we decide the output traffic state is
         # caused by previous N (N >= 2) states.
         out = out[:, -1]
-        
+
         # return the final output and the hidden state
         return out, hidden
-    
-    
+
+
     def init_hidden(self, batch_size):
         '''
         Initializes hidden state.
@@ -107,23 +106,21 @@ class VanillaStateRNN(nn.Module):
         Args:
             batch_size: divide the traffic state sequence into batch_size equally long
                         sub-sequences, for parallelization.
-
         Returns:
             hidden:     initialized hidden state
         '''
         # Create two new tensors with sizes n_layers x batch_size x n_hidden,
         # initialized to zero, for hidden state and cell state of LSTM
         weight = next(self.parameters()).data
-        
+
         if (train_on_gpu):
             hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda(),
                       weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda())
         else:
             hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_(),
                       weight.new(self.n_layers, batch_size, self.hidden_dim).zero_())
-        
-        return hidden
 
+        return hidden
 
 
 if __name__ == '__main__':

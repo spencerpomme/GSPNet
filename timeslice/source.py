@@ -218,7 +218,6 @@ class DatabaseSource(Source):
         # data source info
         # self.total_rows = self._sumrows()
 
-
     def __repr__(self, verbose=False):
         '''
         Representation method for database source.
@@ -238,7 +237,6 @@ class DatabaseSource(Source):
 
         return info
 
-
     def __len__(self):
         '''
         Returns the total number of rows ot self.table.
@@ -247,7 +245,6 @@ class DatabaseSource(Source):
         # temp_df = pd.read_sql_query(sql, self.conn)
 
         return self.total_rows
-
 
     def load(self):
         '''
@@ -325,7 +322,6 @@ class DatabaseSource(Source):
                 f'Ended at {time.ctime()}, total time {bare_end - bare_start:.2f} seconds.')
 
     # helper functions
-
     @staticmethod
     def _concurrent_read(id: int, df_pool: dict, query: str):
         '''
@@ -344,7 +340,6 @@ class DatabaseSource(Source):
         # cursor = conn.cursor()
         # cursor.execute(query)
         df_pool[id] = pd.read_sql_query(query, conn)
-
 
     def _concurrent_split(self, granularity: str = '1W-MON'):
         '''
@@ -375,7 +370,6 @@ class DatabaseSource(Source):
 
         return queries
 
-
     def _construct_sub_sql(self, stp: str, etp: str):
         '''
         A private helper function to construct sql query, called another
@@ -393,7 +387,6 @@ class DatabaseSource(Source):
 
         return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from {self.tbname} "
                 f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
-
 
     def _process_granularity(self, stp: str, etp: str, freq: str):
         '''
@@ -444,7 +437,6 @@ class DatabaseSource(Source):
         # return rounded time intervals
         return subs
 
-
     def subset(self, stp: str, etp: str):
         '''
         Make a subset from the table according to time.
@@ -481,7 +473,6 @@ class DatabaseSource(Source):
 
         return sub_table
 
-
     def _weekly_parallel(self):
         '''
         A convenient wrapper of concurrent load using a week as deviding unit.
@@ -493,7 +484,6 @@ class DatabaseSource(Source):
             table_pool: A pool of sub tables
         '''
         return self._concurrent_split('1W-MON')
-
 
     def _monthly_parallel(self):
         '''
@@ -507,13 +497,11 @@ class DatabaseSource(Source):
         '''
         return self._concurrent_split('1M')
 
-
     def _sumrows(self):
         '''
         Sum up sub table rows in self.table_pool.
         '''
         raise NotImplementedError
-
 
     def _get_columns(self):
         '''

@@ -35,9 +35,9 @@ from glob import glob, iglob
 
 
 # helper functions
-def save_model(filename, decoder):
+def save_model(filename, model):
     save_filename = os.path.splitext(os.path.basename(filename))[0] + '.pt'
-    torch.save(decoder, save_filename)
+    torch.save(model, save_filename)
 
 
 def load_model(filename):
@@ -168,19 +168,20 @@ def train_rnn(model, batch_size, optimizer, criterion, n_epochs,
                 model.train()
                 avg_val_loss = np.mean(valid_losses)
                 # printing loss stats
-                print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {np.mean(batch_losses)}  Val Loss {avg_val_loss}')
+                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {np.mean(batch_losses)}  Val Loss {avg_val_loss}')
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
-                    print(
-                        f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
-                    torch.save(model.state_dict(),
-                               './trained_models/best_model.pt')
+                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
+
+                    torch.save(model.state_dict(), './trained_models/best_model.pt')
+
                 train_losses = []
                 valid_losses = []
 
     # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
     return model
 
 
