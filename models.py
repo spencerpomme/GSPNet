@@ -41,7 +41,7 @@ class VanillaStateRNN(nn.Module):
 
     A simple LSTM model, without any preprocessing to the inputs.
     '''
-    def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2, drop_prob=0.5, lr=0.001):
+    def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2, drop_prob=0.5, lr=0.001, train_on_gpu=True):
         '''
         LSTM model initialization.
 
@@ -60,6 +60,7 @@ class VanillaStateRNN(nn.Module):
         self.n_layers = n_layers
         self.drop_prob = drop_prob
         self.lr = lr
+        self.train_on_gpu = train_on_gpu
 
         # define the LSTM
         self.lstm = nn.LSTM(input_size, self.hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
@@ -113,7 +114,7 @@ class VanillaStateRNN(nn.Module):
         # initialized to zero, for hidden state and cell state of LSTM
         weight = next(self.parameters()).data
 
-        if (train_on_gpu):
+        if self.train_on_gpu:
             hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda(),
                       weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda())
         else:
