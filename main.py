@@ -22,8 +22,8 @@ def f(worker):
 if __name__ == '__main__':
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_10',
-                                 ('2017-10-01 00:00:00', '2017-11-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2017_08',
+                                 ('2017-08-01 00:00:00', '2017-09-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
@@ -40,7 +40,7 @@ if __name__ == '__main__':
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
             wp = worker.Worker(k, tables[k], rule.TimeSlice(
-                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
+                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}_val', True)
             workers.append(wp)
 
         print(f'Start generating tensors with freq {freq}at {time.ctime()}\n')
