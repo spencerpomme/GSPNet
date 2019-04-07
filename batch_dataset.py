@@ -26,16 +26,18 @@ import pandas as pd
 import torch
 import glob
 
-from collection import Counter
+from collections import Counter
 from torch.utils.data import TensorDataset, DataLoader
 
+
+# generate training pair from tensors
 # generate training pair from tensors
 def batch_data(states, sequence_length, batch_size):
     """
     Batch the neural network data using DataLoader
 
     Args:
-        states: 
+        states:
         sequence_length: The sequence length of each batch
         batch_size: The size of each batch; the number of sequences in a batch
 
@@ -43,26 +45,41 @@ def batch_data(states, sequence_length, batch_size):
         DataLoader with batched data
     """
     num_batches = len(states) // batch_size
-    
+
     # only full batches
     states = states[: num_batches * batch_size]
-    
-    # TODO: Implement function    
+
+    # TODO: Implement function
     features, targets = [], []
 
     for idx in range(0, (len(states) - sequence_length)):
         features.append(states[idx: idx + sequence_length])
         targets.append(states[idx + sequence_length])
 
-    data = TensorDataset(torch.from_numpy(np.asarray(features, 'int64')),
-                         torch.from_numpy(np.asarray(targets, 'int64')))
-    
-    data_loader = torch.utils.data.DataLoader(data, shuffle=False , batch_size = batch_size, num_workers=6)
+    data = TensorDataset(torch.from_numpy(np.array(features)),
+                         torch.from_numpy(np.array(targets)))
+
+    data_loader = torch.utils.data.DataLoader(data, shuffle=False, batch_size=batch_size, num_workers=0)
 
     # return a dataloader
     return data_loader
 
-
 if __name__ == '__main__':
 
-    data_dir = 'full_year_15min/tensors'
+    tensor_dir = 'tensor_dataset/nn_test_15min/tensors'
+    visual_dir = 'tensor_dataset/nn_test_15min/viz_images'
+
+    tensor_iter = iglob(tensor_dir + '/*')
+    states = []
+
+    for state in tensor_iter:
+        state = torch.load(state).numpy()
+        states.append(state)
+
+    states = np.array(states)
+
+    states = states.reshape((2976, -1))
+    states = states.astype('float32')
+    states.shape
+
+    data_loader = batch_data(states, 12, 2)
