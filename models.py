@@ -166,34 +166,22 @@ class PeriodClassifier(nn.Module):
         Returns:
             y: prediction probability vector sized (n_classes, 1)
         '''
-        x = 
-
-
-'''
-    def forward(self, x):
-        ## Define forward behavior
-        # add sequence of convolutional and max pooling layers
-        x = self.pool(F.relu(self.conv1(x)))
+        # add sequence of convolutional layers
+        x = F.relu(self.conv1(x))
         x = self.conv_bn1(x)
-        x = self.pool(F.relu(self.conv2(x)))
+        x = F.relu(self.conv2(x))
         x = self.conv_bn2(x)
-        x = self.pool(F.relu(self.conv3(x)))
+        x = F.relu(self.conv3(x))
         x = self.conv_bn3(x)
-        x = self.pool(F.relu(self.conv4(x)))
-        x = self.conv_bn4(x)
-        x = self.pool(F.relu(self.conv5(x)))
-        x = self.conv_bn5(x)
 
-        # flatten image input
-        x = x.view(-1, 256 * 7 * 7)        
-        # add dropout layer
+        # flatten tensor input
+        x = x.view(-1, 128 * 7 * 7)
         x = self.dropout(x)
-        # add second hidden layer
-        x = F.relu(self.fc1(x))
+        x = self.fc1(x)
         x = self.dropout(x)
         x = self.fc2(x)
+
         return x
-'''
 
 
 if __name__ == '__main__':
