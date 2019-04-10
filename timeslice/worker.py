@@ -161,7 +161,7 @@ def gen_tensor(p_layer, n_layer, f_layer):
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
-        
+
     Return:
         A torch tensor.
     '''
@@ -226,6 +226,7 @@ def create_adjacency_matrix(arr, am, ly: int):
     Returns:
         am: a filled adjacency matrix 2d numpy array
     '''
+    # Don't touch this dict unless you know what you're doing!
     mapping = {
         4: 0,   12: 1,   13: 2,   24: 3,   41: 4,   42: 5,
         43: 6,   45: 7,   48: 8,   50: 9,   68: 10,  74: 11,
@@ -414,7 +415,6 @@ class Worker:
             self.visual_dir = destin + '/viz_images'
             create_dir(self.visual_dir)
 
-
     def __repr__(self):
         '''
         Representation method for Worker object.
@@ -424,7 +424,6 @@ class Worker:
                  visualize: {self.viz}\n\
                  viz_dir: {self.visual_dir if self.visual_dir else None}'
 
-
     def clean_rows(self, table):
         '''
         Remove rows in the table(pandas dataframe) if either of its location ID
@@ -432,7 +431,7 @@ class Worker:
 
         Args:
             table: pandas DataFrame
-        
+
         Returns:
             table: pandas DataFrame
         '''
@@ -457,7 +456,6 @@ class Worker:
         # print(f'after cleansing table size: {table.shape}')
 
         return table
-
 
     def generate(self):
         '''
@@ -515,5 +513,5 @@ class Worker:
                 image = gen_image_fast(p_layer, n_layer, f_layer)
 
                 # resize to x50
-                # vimage = image.resize((345,345))
+                image = image.resize((345, 345))
                 image.save(image_path)

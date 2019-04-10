@@ -26,12 +26,14 @@ import pandas as pd
 import pickle as pkl
 import matplotlib.pyplot as plt
 import os
+import re
 import time
 import torch
 
 from torch import nn, optim
+from torch.utils import data
 from torch.utils.data import TensorDataset, DataLoader
-from glob import iglob
+from glob import iglob, glob
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 
@@ -39,8 +41,147 @@ from tqdm import tqdm
 from models import *
 
 
+# Customized RNN/LSTM datasets when dataset are to big to load at once into RAM
+class F2FDataset(data.Dataset):
+    '''
+    Frame to frame dataset.
+    '''
+
+    def __init__(self, datadir, seq_len):
+        '''
+        Initialization
+        Args:
+            datadir: directory of serialized tensors
+            seq_len: timestep length of tensors
+        '''
+        self.paths = glob(datadir + '/*.pkl')
+        # only want full seq_len sized length numbers
+        self.seq_len = seq_len
+        self.length = len(self.paths) // seq_len * seq_len
+        self.idict = {}
+        for i in range(self.length):
+            self.idict[i] = self.paths[i]
+
+        self.input_ids = self.idict.keys()[:-1]
+        self.label_ids = self.idict.keys()[1:]
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return self.length - self.seq_len
+
+    def __getitem__(self, index):
+        '''
+        Generates one sample of data
+        '''
+        # Load data and get label
+        X = torch.load(self.idict[self.input_ids[index]])
+        y = torch.load(self.idict[self.label_ids[index]])
+
+        return X, y
+
+
+class S2FDataset(data.Dataset):
+    '''
+    Sequence of Frames to one frame dataset.
+    '''
+
+    def __init__(self, datadir, seq_len):
+        '''
+        Initialization
+        Args:
+            datadir: directory of serialized tensors
+            seq_len: timestep length of tensors
+        '''
+        self.paths = glob(datadir + '/*.pkl')
+        # only want full seq_len sized length numbers
+        self.seq_len = seq_len
+        self.length = len(self.paths) // seq_len * seq_len
+        self.idict = {}
+        for i in range(self.length):
+            self.idict[i] = self.paths[i]
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return self.length - self.seq_len
+
+    def __getitem__(self, index):
+        '''
+        Generates one sample of data
+        '''
+        # Load data and get label
+        X = []
+        for i in range(self.seq_len):
+            x = torch.load(self.idict[index + i])
+            X.append(x)
+        X = np.array(X).astype('float32')
+        X = X.reshape((len(X), -1))
+        X = torch.from_numpy(X)
+        y = torch.load(self.idict[index + seq_len])
+
+        return X, y
+
+
+# Classification dataset
+class SnapshotClassificationDataset(data.Dataset):
+    '''
+    A dataset that divide time snapshots into n classes, where n is the number
+    of snapshots per day(default) or other specified number. For example, the
+    several snapshots (15min) can be recognized as one class of hour X.
+    '''
+    def __init__(self, datadir: str, combine_fact: int=1):
+        '''
+        Initialization method.
+        Args:
+            datadir: directory containing `tensors` and `viz_images` folder
+            combine_fact: combine factor, number of adjacent snapshots to be
+                          classified as same class.
+        Example:
+            if combine_fact == 2, then:
+            snap1, snap2, ..., snapN of one day is classified to N/2 classes,
+            (snap1, snap2) is of one class, (snap3, snap4) is of the second
+            class, etc. Note: N % combine_fact should be 0!
+        '''
+        self.datadir = datadir
+        self.combine_fact = combine_fact
+
+        # capture time unit from dir string
+        dir_pattern = re.compile('(?<=_)\d+(?=min)')
+        interval = int(dir_pattern.findall(self.datadir)[0])
+
+        # number of snapshots in a day: raw_clss
+        raw_clss = 60 / interval * 24
+        assert raw_clss == int(raw_clss), 'raw_clss should be an whole number'
+        assert raw_clss % self.combine_fact == 0, 'raw_clss should be divisible by combine_fact'
+
+        # actual classes in this setting
+        self.n_classes = raw_clss / self.combine_fact
+        self.paths = glob(self.datadir + '/tensors/*.pkl')
+        self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return len(self.paths)
+
+    def __getitem__(self, index):
+        '''
+         Generates one sample of data
+         Decide class of the sample on the fly.
+        '''
+        path = self.paths[index]
+        X = torch.load(path)
+        y = int(self.pattern.findall(path)[0]) % self.n_classes
+
+        return X, y
+
+
 # helper functions
-def save_model(filename:str, model):
+def save_model(filename: str, model):
     '''
     Save model to local file.
 
@@ -52,7 +193,7 @@ def save_model(filename:str, model):
     torch.save(model, save_filename)
 
 
-def load_model(filename:str):
+def load_model(filename: str):
     '''
     Load trained model.
 
@@ -141,9 +282,9 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
-              train_loader, valid_loader, hyps,
-              clip=5, stop_criterion=20,
-              show_every_n_batches=1000):
+               train_loader, valid_loader, hyps,
+               clip=5, stop_criterion=20,
+               show_every_n_batches=1000):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -194,7 +335,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
             # make sure you iterate over completely full batches, only
             n_batches = len(train_loader.dataset) // batch_size
-            if batch_i > n_batches :
+            if batch_i > n_batches:
                 break
 
             # forward, back prop
@@ -246,7 +387,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                     print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
                     valid_loss_min = avg_val_loss
                     early_stop_count = 0
-                
+
                 else:
                     early_stop_count += 1
                     torch.save(model.state_dict(),
@@ -265,7 +406,7 @@ if __name__ == '__main__':
 
     # Data params
     # Sequence Length
-    sequence_length = 24  # of time slices in a sequence
+    sequence_length = 6  # of time slices in a sequence
     # Batch Size
     batch_size = 2
     # Gradient clip
@@ -283,7 +424,7 @@ if __name__ == '__main__':
     # Output size
     output_size = input_size
     # Hidden Dimension
-    hidden_dim = 512
+    hidden_dim = 1024
     # Number of RNN Layers
     n_layers = 2
     # Dropout probability
@@ -305,7 +446,7 @@ if __name__ == '__main__':
     train_on_gpu = torch.cuda.is_available()
 
     # Initialize data loaders
-    train_dir = 'tensor_dataset/nn_test_15min/tensors'
+    train_dir = 'tensor_dataset/full_year_2018_15min/tensors'
     valid_dir = 'tensor_dataset/nn_test_15min_val/tensors'
 
     train_iter = iglob(train_dir + '/*')
@@ -348,8 +489,8 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # start training
-    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion, epochs,
-                                     train_loader, valid_loader, hyps)
+    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
+                                     epochs, train_loader, valid_loader, hyps)
 
     # loss plot
     tl, vl = tlvl

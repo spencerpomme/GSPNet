@@ -1,3 +1,26 @@
+'''
+Copyright <2019> <COPYRIGHT Pingcheng Zhang>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+##============================================================================##
+'''
+
 import timeslice
 import timeslice.source as source
 import timeslice.rule as rule
@@ -22,8 +45,8 @@ def f(worker):
 if __name__ == '__main__':
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2017_07',
-                                 ('2017-07-01 00:00:00', '2017-08-01 00:00:00'))
+    taxi = source.DatabaseSource('cleaned_small_yellow_2018_full',
+                                 ('2018-01-01 00:00:00', '2019-01-01 00:00:00'))
     taxi.load()
 
     tables = taxi.table_pool
@@ -40,7 +63,7 @@ if __name__ == '__main__':
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
             wp = worker.Worker(k, tables[k], rule.TimeSlice(
-                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/nn_test_{freq}', True)
+                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/full_year_2018_{freq}', True)
             workers.append(wp)
 
         print(f'Start generating tensors with freq {freq} at {time.ctime()}\n')

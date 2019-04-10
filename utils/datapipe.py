@@ -31,6 +31,7 @@ import time
 import os
 from multiprocessing import Queue, Process, cpu_count
 
+
 class DirFileLoader:
     '''
     A util class to load csv files in a folder to a connected database.
@@ -52,7 +53,6 @@ class DirFileLoader:
         self.res_pool = []
         self._init_pool()
 
-
     def _init_pool(self):
         '''
         Initialize thread/process pool for concurrent IO tasks.
@@ -62,7 +62,6 @@ class DirFileLoader:
         for d in self.dirs:
             self.dir_pool.put(d)
         # print(f'Init complete:\n {list(self.dir_pool.queue)}')
-
 
     def sqstart(self):
         '''
@@ -80,18 +79,18 @@ class DirFileLoader:
         t = time.time() - s
         print(f'Read time: {round(t//60)}min {round(t%60, 8)}sec.')
 
-
     def mpstart(self):
         '''
-        Mulpti-processing IO task starter. 
-        Delegate io functions wrapped by self.task_io wrapper to multiple processes.
+        Mulpti-processing IO task starter.
+        Delegate io functions wrapped by self.task_io wrapper to multiple
+        processes.
         '''
         print(f'\n\n========== Parallel Loading Start ==========')
         self._init_pool()
         s = time.time()
         process_list = [Process(target=self.task_io, args=(i,))
-             for i in range(cpu_count())
-        ]
+                        for i in range(cpu_count())
+                        ]
         for p in process_list:
             p.start()
 
@@ -100,18 +99,18 @@ class DirFileLoader:
                 p.join()
         print(f'========== Task end in {round(time.time() - s, 4)} sec ==========\n')
 
-
     def mcstart(self):
         '''
-        Mulpti-thread IO task starter. 
-        Delegate io functions wrapped by self.task_io wrapper to multiple threads.
+        Mulpti-thread IO task starter.
+        Delegate io functions wrapped by self.task_io wrapper to multiple
+        threads.
         '''
         print(f'\n\n========== Multi-thread Loading Start ==========')
         self._init_pool()
         s = time.time()
         thread_list = [Thread(target=self.task_io, args=(i,))
-            for i in range(len(self.dirs))
-        ]
+                       for i in range(len(self.dirs))
+                       ]
         for t in thread_list:
             t.start()
 
@@ -119,7 +118,6 @@ class DirFileLoader:
             if t.is_alive():
                 t.join()
         print(f'========== Task end in {round(time.time() - s, 4)} sec ==========\n')
-
 
     def task_io(self, id: int):
         '''
@@ -140,7 +138,6 @@ class DirFileLoader:
                 print(f'IO task[{id}] error: {e}')
         print(f'IO task[{id}] ended.')
 
-
     # Utility functions for one kind of IO opereation
     def __readcsv(self, file: str) -> pd.DataFrame:
         '''
@@ -155,7 +152,6 @@ class DirFileLoader:
         print(f'{file} loaded.')
         return tb
 
-
     def __csv2db(self, file: str):
         '''
         Copy csv file into a database.
@@ -167,11 +163,10 @@ class DirFileLoader:
         with open(file, 'r') as f:
             next(f)  # Skip the header row
             try:
-                cur.copy_from(f, 'test_table', sep=',')
+                cur.copy_from(f, 'yellow_2018', sep=',')
             except Exception as e:
                 print(f'{e}')
         conn.commit()
-
 
 
 

@@ -152,11 +152,16 @@ class CSVSource(Source):
 
         Args:
             first_n_rows: first n rows of the table
-        
+
         Returns:
             head object
         '''
         return self.table.head(first_n_rows)
+
+    def analysis(self):
+        '''
+        '''
+        pass
 
 
 #==================================#
@@ -165,7 +170,7 @@ class CSVSource(Source):
 class DatabaseSource(Source):
     '''
     Data source class when the data source is a relational database.
-    
+
     It is effectively using a relational database as source while still using
     pandas or dask to do the heavy lifting, without creating wheels to manually
     do the works.
@@ -184,7 +189,7 @@ class DatabaseSource(Source):
             user: (admin) user of the database
             concurrent: decide whether to divide a big table into small one and
                         load concurrently or not.
-        
+
         Example:
             host="localhost" dbname="taxi" user="postgres"
         '''

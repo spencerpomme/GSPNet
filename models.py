@@ -29,19 +29,22 @@ import matplotlib.pyplot as plt
 import os
 import time
 import torch
+import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 from glob import glob, iglob
 
 
 # models
+# RNN models to do sequential prediction:
 class VanillaStateRNN(nn.Module):
     '''
     The baseline model.
 
     A simple LSTM model, without any preprocessing to the inputs.
     '''
-    def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2, drop_prob=0.5, lr=0.001, train_on_gpu=True):
+    def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
+                 drop_prob=0.5, lr=0.001, train_on_gpu=True):
         '''
         LSTM model initialization.
 
@@ -71,7 +74,6 @@ class VanillaStateRNN(nn.Module):
         # define the final, fully-connected output layer
         self.fc = nn.Linear(hidden_dim, self.output_size)
 
-
     def forward(self, x, hidden):
         '''
         Forward pass through the network. 
@@ -99,7 +101,6 @@ class VanillaStateRNN(nn.Module):
         # return the final output and the hidden state
         return out, hidden
 
-
     def init_hidden(self, batch_size):
         '''
         Initializes hidden state.
@@ -122,6 +123,77 @@ class VanillaStateRNN(nn.Module):
                       weight.new(self.n_layers, batch_size, self.hidden_dim).zero_())
 
         return hidden
+
+
+# classification model(s)
+class PeriodClassifier(nn.Module):
+    '''
+    A Convolutional Neural Network based classifier.
+    Determines whether a snapshot is temporally distinguishable by viz.
+    '''
+    def __init__(self):
+        '''
+        Initialization
+        '''
+        super(PeriodClassifier, self).__init__()
+        n_classes = 96  # (4 x 24) snapshots per day
+        # define conv layers
+        # in: (69 x 69) out: (33 x 33)
+        self.conv1 = nn.Conv2d(3, 33, 5, 2)
+        # in: (33 x 33) out: (16 x 16)
+        self.conv2 = nn.Conv2d(33, 64, 3, 2)
+        # in: (16 x 16) out: (7 x 7)
+        self.conv3 = nn.Conv2d(64, 128, 4, 2)
+
+        # dropout layer (p=0.2)
+        self.dropout = nn.Dropout(0.2)
+
+        # batch norm layers
+        self.conv_bn1 = nn.BatchNorm2d(33)
+        self.conv_bn2 = nn.BatchNorm2d(64)
+        self.conv_bn3 = nn.BatchNorm2d(128)
+
+        # fully connected layers
+        # in (7 x 7 x 128) out (1024)
+        self.fc1 = nn.Linear(7*7*128, 1024)
+        self.fc2 = nn.Linear(1024, n_classes)
+
+    def forward(self, x):
+        '''
+        Forward behavior of the network
+        Args:
+            x: input tensor
+        Returns:
+            y: prediction probability vector sized (n_classes, 1)
+        '''
+        x = 
+
+
+'''
+    def forward(self, x):
+        ## Define forward behavior
+        # add sequence of convolutional and max pooling layers
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.conv_bn1(x)
+        x = self.pool(F.relu(self.conv2(x)))
+        x = self.conv_bn2(x)
+        x = self.pool(F.relu(self.conv3(x)))
+        x = self.conv_bn3(x)
+        x = self.pool(F.relu(self.conv4(x)))
+        x = self.conv_bn4(x)
+        x = self.pool(F.relu(self.conv5(x)))
+        x = self.conv_bn5(x)
+
+        # flatten image input
+        x = x.view(-1, 256 * 7 * 7)        
+        # add dropout layer
+        x = self.dropout(x)
+        # add second hidden layer
+        x = F.relu(self.fc1(x))
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+'''
 
 
 if __name__ == '__main__':
