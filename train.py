@@ -155,7 +155,7 @@ class SnapshotClassificationDataset(data.Dataset):
         # number of snapshots in a day: raw_clss
         raw_clss = 60 / interval * 24
         assert raw_clss == int(raw_clss), 'raw_clss should be an whole number'
-        assert raw_clss % self.combine_fact == 0, 'raw_clss should be divisible by combine_fact'
+        assert raw_clss % self.combine_fact == 0, 'raw_clss not divisible'
 
         # actual classes in this setting
         self.n_classes = raw_clss / self.combine_fact
@@ -281,6 +281,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     return loss.item(), h
 
 
+# training function for sequential prediction
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                train_loader, valid_loader, hyps,
                clip=5, stop_criterion=20,
@@ -314,7 +315,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
     train_losses = []
 
-    # for plot:
+    # for plot training loss and validation loss
     tl = []
     vl = []
 
@@ -402,6 +403,130 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
     return model, (tl, vl)
 
 
+# training function of CNN classification
+def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
+                     train_loader, valid_loader, hyps,
+                     clip=5, stop_criterion=20,
+                     show_every_n_batches=1000):
+    '''
+    Train a CNN classifier with the given hyperparameters.
+
+    Args:
+        model:              The PyTorch Module that holds the neural network
+        batch_size:         batch size, integer
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        train_loader:       Training data loader
+        valid_loader:       Validation data loader
+        hyps:               A dict containing model parameters
+        clip:               Clip the overly large gradient
+        show_every_batches: Display loss every this number of time steps
+
+    Returns:
+        A trained model. The best model will also be saved locally.
+    '''
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training started at {time.ctime()}')
+    # validation constants
+    early_stop_count = 0
+    valid_loss_min = np.inf
+
+    train_losses = []
+
+    # for plot training loss and validation loss
+    tl = []
+    vl = []
+
+    model.train()
+
+    print("Training for %d epoch(s)..." % n_epochs)
+    for epoch_i in range(1, n_epochs + 1):
+
+        hidden = model.init_hidden(batch_size)
+
+        # early stop mechanism:
+        if early_stop_count >= stop_criterion:
+            print(
+                f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
+            break
+
+        for batch_i, (inputs, labels) in enumerate(train_loader, 1):
+
+            # make sure you iterate over completely full batches, only
+            n_batches = len(train_loader.dataset) // batch_size
+            if batch_i > n_batches:
+                break
+
+            # forward, back prop
+            # print(f'inputs shape: {inputs.shape} labels shape: {labels.shape}')
+            # print(f'inputs dtype: {inputs[0][0][0].dtype} label shape: {labels[0][0].dtype}')
+            inputs, labels = inputs.cuda(), labels.cuda()
+
+            loss, hidden = forward_back_prop(
+                model, optimizer, criterion, inputs, labels, hidden, clip
+            )
+
+            # record loss
+            train_losses.append(loss)
+
+            # print loss every show_every_n_batches batches
+            # including validation loss
+            if batch_i % show_every_n_batches == 0:
+                # get validation loss
+                val_h = model.init_hidden(batch_size)
+                valid_losses = []
+
+                # switch to validation mode
+                model.eval()
+
+                for v_inputs, v_labels in valid_loader:
+
+                    v_inputs, v_labels = v_inputs.cuda(), v_labels.cuda()
+
+                    # Creating new variables for the hidden state, otherwise
+                    # we'd backprop through the entire training history
+                    val_h = tuple([each.data for each in val_h])
+
+                    v_output, val_h = model(v_inputs, val_h)
+                    val_loss = criterion(v_output, v_labels)
+
+                    valid_losses.append(val_loss.item())
+
+                model.train()
+                avg_val_loss = np.mean(valid_losses)
+                avg_tra_loss = np.mean(train_losses)
+
+                tl.append(avg_tra_loss)
+                vl.append(avg_val_loss)
+                # printing loss stats
+                print(
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss}  Val Loss {avg_val_loss}')
+
+                # decide whether to save model or not:
+                if avg_val_loss < valid_loss_min:
+                    print(
+                        f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
+                    valid_loss_min = avg_val_loss
+                    early_stop_count = 0
+
+                else:
+                    early_stop_count += 1
+                    torch.save(model.state_dict(),
+                               f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
+
+                train_losses = []
+                valid_losses = []
+
+    # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    return model, (tl, vl)
+
+
 if __name__ == '__main__':
 
     # Data params
@@ -449,33 +574,33 @@ if __name__ == '__main__':
     train_dir = 'tensor_dataset/full_year_2018_15min/tensors'
     valid_dir = 'tensor_dataset/nn_test_15min_val/tensors'
 
-    train_iter = iglob(train_dir + '/*')
-    valid_iter = iglob(valid_dir + '/*')
+    # train_iter = iglob(train_dir + '/*')
+    # valid_iter = iglob(valid_dir + '/*')
 
-    train_states = []
-    valid_states = []
+    # train_states = []
+    # valid_states = []
 
-    print('Loading dataset...')
-    print('Loading training set...')
-    for state in tqdm(train_iter, ascii=True):
-        state = torch.load(state).numpy()
-        train_states.append(state)
-    print('Loading validation set...')
-    for state in tqdm(valid_iter, ascii=True):
-        state = torch.load(state).numpy()
-        valid_states.append(state)
+    # print('Loading dataset...')
+    # print('Loading training set...')
+    # for state in tqdm(train_iter, ascii=True):
+    #     state = torch.load(state).numpy()
+    #     train_states.append(state)
+    # print('Loading validation set...')
+    # for state in tqdm(valid_iter, ascii=True):
+    #     state = torch.load(state).numpy()
+    #     valid_states.append(state)
 
-    train_states = np.array(train_states)
-    valid_states = np.array(valid_states)
+    # train_states = np.array(train_states)
+    # valid_states = np.array(valid_states)
 
-    train_states = train_states.reshape((len(train_states), -1))
-    valid_states = valid_states.reshape((len(valid_states), -1))
-    train_states = train_states.astype('float32')
-    valid_states = valid_states.astype('float32')
+    # train_states = train_states.reshape((len(train_states), -1))
+    # valid_states = valid_states.reshape((len(valid_states), -1))
+    # train_states = train_states.astype('float32')
+    # valid_states = valid_states.astype('float32')
 
-    train_loader = batch_dataset(train_states, sequence_length, batch_size)
-    valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
-    print('Dataset Loaded.')
+    # train_loader = batch_dataset(train_states, sequence_length, batch_size)
+    # valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
+    # print('Dataset Loaded.')
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
