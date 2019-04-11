@@ -90,19 +90,18 @@ class S2FDataset(data.Dataset):
     Sequence of Frames to one frame dataset.
     '''
 
-    def __init__(self, datadir, seq_len, batch_size):
+    def __init__(self, datadir, seq_len):
         '''
         Initialization
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
-            batch_size: divide a sequence to n_batch sequences
         '''
         self.paths = glob(datadir + '/*.pkl')
         path_num = len(self.paths)
-        n_batches = path_num // batch_size
+        n_batches = path_num // seq_len
         # only want full size batches
-        self.paths = self.paths[: n_batches * batch_size]
+        self.paths = self.paths[: n_batches * seq_len]
 
         self.seq_len = seq_len
         self.length = len(self.paths) // seq_len * seq_len
@@ -145,7 +144,7 @@ class S2FDatasetRAM(data.Dataset):
     Load all data into RAM at once.
     '''
 
-    def __init__(self, datadir, seq_len, batch_size):
+    def __init__(self, datadir, seq_len):
         '''
         Initialization
         Args:
@@ -155,15 +154,21 @@ class S2FDatasetRAM(data.Dataset):
         '''
         self.paths = glob(datadir + '/*.pkl')
         path_num = len(self.paths)
-        n_batches = path_num // batch_size
+        full_seq = path_num // seq_len * seq_len
         # only want full size batches
-        self.paths = self.paths[: n_batches * batch_size]
+        self.paths = self.paths[: full_seq]
 
         self.seq_len = seq_len
-        self.length = len(self.paths) // seq_len * seq_len
-        self.idict = {}
-        for i in range(self.length):
-            self.idict[i] = self.paths[i]
+        # total length of all tensors
+        self.length = len(self.paths)
+
+        # load all tensor into RAM
+        tensors = []
+        for path in self.paths:
+            tensor = torch.load(path).numpy()
+            tensors.append(tensor)
+        tensors = np.array(tensors).astype('float32')
+        self.tensors = tensors.reshape((self.length, -1))
 
     def __len__(self):
         '''
@@ -175,21 +180,8 @@ class S2FDatasetRAM(data.Dataset):
         '''
         Generates one sample of data
         '''
-        # Load data and get label
-        X = []
-        for i in range(self.seq_len):
-            x = torch.load(self.idict[index + i]).numpy()
-            X.append(x)
-        X = np.array(X).astype('float32')
-        X = X.reshape((len(X), -1))
-        X = torch.from_numpy(X)
-        y = torch.load(self.idict[index + self.seq_len]).type(torch.float32)
-
-        # flatten y to be the same dimention as X
-        y = y.flatten()
-        # print('#'*20)
-        # print(f'X shape is: {X.shape}')  # <- X is ok
-        # print('#' * 20)
+        X = self.tensors[index: index+self.seq_len]
+        y = self.tensors[index+self.seq_len]
 
         return X, y
 
@@ -284,15 +276,15 @@ def batch_dataset(states, sequence_length, batch_size):
     Args:
         states:
         sequence_length: The sequence length of each batch
-        batch_size: The size of each batch; the number of sequences in a batch
+        batch_size: batch size
 
     Return:
         DataLoader with batched data
     """
-    num_batches = len(states) // batch_size
+    num_batches = len(states) // sequence_length
 
     # only full batches
-    states = states[: num_batches * batch_size]
+    states = states[: num_batches * sequence_length]
 
     # TODO: Implement function
     features, targets = [], []
@@ -588,15 +580,13 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
 if __name__ == '__main__':
 
     # LSTM Model Data params
-    sequence_length = 12  # number of time slices in a sequence
-    batch_size = 16       # how many sequences processed at a time
+    sequence_length = 24  # number of time slices in a sequence
     clip = 5
 
     # Training parameters
     epochs = 20
     learning_rate = 0.001
-    # (use `sample_per_batch` to distinguish from batch_size in RNN context)
-    sample_per_batch = 128
+    batch_size = 128
 
     # Model parameters
     input_size = 69*69*3
@@ -654,13 +644,13 @@ if __name__ == '__main__':
     # print('Dataset Loaded.')
 
     # LSTM data loader
-    train_set = S2FDataset(train_dir, sequence_length, batch_size)
-    valid_set = S2FDataset(valid_dir, sequence_length, batch_size)
-    train_loader = DataLoader(train_set, shuffle=False,
-                              batch_size=sample_per_batch, num_workers=0)
+    train_set = S2FDatasetRAM(train_dir, sequence_length)
+    valid_set = S2FDatasetRAM(valid_dir, sequence_length)
+    train_loader = DataLoader(train_set, shuffle=False, batch_size=batch_size,
+                              num_workers=0, drop_last=True)
 
-    valid_loader = DataLoader(valid_set, shuffle=False,
-                              batch_size=sample_per_batch, num_workers=0)
+    valid_loader = DataLoader(valid_set, shuffle=False, batch_size=batch_size,
+                              num_workers=0, drop_last=True)
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
@@ -674,7 +664,7 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # start training
-    trained_model, tlvl = train_lstm(model, sample_per_batch, optimizer, criterion,
+    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
                                      epochs, train_loader, valid_loader, hyps)
 
     # loss plot
