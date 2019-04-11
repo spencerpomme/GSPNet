@@ -44,6 +44,7 @@ from models import *
 
 
 # Customized RNN/LSTM datasets when dataset are to big to load at once into RAM
+# Data feeders, type 1 (using classes)
 class F2FDataset(data.Dataset):
     '''
     Frame to frame dataset.
@@ -89,15 +90,20 @@ class S2FDataset(data.Dataset):
     Sequence of Frames to one frame dataset.
     '''
 
-    def __init__(self, datadir, seq_len):
+    def __init__(self, datadir, seq_len, batch_size):
         '''
         Initialization
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
+            batch_size: divide a sequence to n_batch sequences
         '''
         self.paths = glob(datadir + '/*.pkl')
-        # only want full seq_len sized length numbers
+        path_num = len(self.paths)
+        n_batches = path_num // batch_size
+        # only want full size batches
+        self.paths = self.paths[: n_batches * batch_size]
+
         self.seq_len = seq_len
         self.length = len(self.paths) // seq_len * seq_len
         self.idict = {}
@@ -126,6 +132,64 @@ class S2FDataset(data.Dataset):
 
         # flatten y to be the same dimention as X
         y = y.flatten()
+        # print('#'*20)
+        # print(f'X shape is: {X.shape}')  # <- X is ok
+        # print('#' * 20)
+
+        return X, y
+
+
+class S2FDatasetRAM(data.Dataset):
+    '''
+    Sequence of Frames to one frame dataset.
+    Load all data into RAM at once.
+    '''
+
+    def __init__(self, datadir, seq_len, batch_size):
+        '''
+        Initialization
+        Args:
+            datadir: directory of serialized tensors
+            seq_len: timestep length of tensors
+            batch_size: divide a sequence to n_batch sequences
+        '''
+        self.paths = glob(datadir + '/*.pkl')
+        path_num = len(self.paths)
+        n_batches = path_num // batch_size
+        # only want full size batches
+        self.paths = self.paths[: n_batches * batch_size]
+
+        self.seq_len = seq_len
+        self.length = len(self.paths) // seq_len * seq_len
+        self.idict = {}
+        for i in range(self.length):
+            self.idict[i] = self.paths[i]
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return self.length - self.seq_len
+
+    def __getitem__(self, index):
+        '''
+        Generates one sample of data
+        '''
+        # Load data and get label
+        X = []
+        for i in range(self.seq_len):
+            x = torch.load(self.idict[index + i]).numpy()
+            X.append(x)
+        X = np.array(X).astype('float32')
+        X = X.reshape((len(X), -1))
+        X = torch.from_numpy(X)
+        y = torch.load(self.idict[index + self.seq_len]).type(torch.float32)
+
+        # flatten y to be the same dimention as X
+        y = y.flatten()
+        # print('#'*20)
+        # print(f'X shape is: {X.shape}')  # <- X is ok
+        # print('#' * 20)
 
         return X, y
 
@@ -212,6 +276,7 @@ def load_model(filename: str):
     return torch.load(save_filename)
 
 
+# data feeder, type 2
 def batch_dataset(states, sequence_length, batch_size):
     """
     Batch the neural network data using DataLoader
@@ -290,7 +355,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                train_loader, valid_loader, hyps,
                clip=5, stop_criterion=20,
-               show_every_n_batches=1000):
+               show_every_n_batches=1):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -349,6 +414,8 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
             # print(f'inputs dtype: {inputs[0][0][0].dtype} label shape: {labels[0][0].dtype}')
             inputs, labels = inputs.cuda(), labels.cuda()
 
+            #  print(f'Input shape: {inputs.shape}')
+
             loss, hidden = forward_back_prop(
                 model, optimizer, criterion, inputs, labels, hidden, clip
             )
@@ -386,7 +453,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 tl.append(avg_tra_loss)
                 vl.append(avg_val_loss)
                 # printing loss stats
-                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss}  Val Loss {avg_val_loss}')
+                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss:4f}  Val Loss {avg_val_loss:4f}')
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
@@ -520,33 +587,26 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
 
 if __name__ == '__main__':
 
-    # Data params
-    # Sequence Length
-    sequence_length = 48  # of time slices in a sequence
-    # Batch Size
-    batch_size = 128
-    # Gradient clip
+    # LSTM Model Data params
+    sequence_length = 12  # number of time slices in a sequence
+    batch_size = 16       # how many sequences processed at a time
     clip = 5
 
     # Training parameters
-    # Number of Epochs
     epochs = 20
-    # Learning Rate
     learning_rate = 0.001
+    # (use `sample_per_batch` to distinguish from batch_size in RNN context)
+    sample_per_batch = 128
 
     # Model parameters
-    # Vocab size
     input_size = 69*69*3
-    # Output size
     output_size = input_size
-    # Hidden Dimension
     hidden_dim = 1024
     # Number of RNN Layers
     n_layers = 2
-    # Dropout probability
     drop_prob = 0.4
     # Show stats for every n number of batches
-    senb = 1000
+    senb = 1
 
     # wrap essential info into dictionary:
     hyps = {
@@ -594,18 +654,18 @@ if __name__ == '__main__':
     # print('Dataset Loaded.')
 
     # LSTM data loader
-    train_set = S2FDataset(train_dir, sequence_length)
-    valid_set = S2FDataset(valid_dir, sequence_length)
+    train_set = S2FDataset(train_dir, sequence_length, batch_size)
+    valid_set = S2FDataset(valid_dir, sequence_length, batch_size)
     train_loader = DataLoader(train_set, shuffle=False,
-                              batch_size=batch_size, num_workers=6)
+                              batch_size=sample_per_batch, num_workers=0)
 
     valid_loader = DataLoader(valid_set, shuffle=False,
-                              batch_size=batch_size, num_workers=6)
+                              batch_size=sample_per_batch, num_workers=0)
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
-                            n_layers=n_layers, drop_prob=drop_prob,
-                            lr=learning_rate)
+                            n_layers=n_layers, drop_prob=drop_prob)
+
     if train_on_gpu:
         model = model.cuda()
 
@@ -614,7 +674,7 @@ if __name__ == '__main__':
     criterion = nn.MSELoss()
 
     # start training
-    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
+    trained_model, tlvl = train_lstm(model, sample_per_batch, optimizer, criterion,
                                      epochs, train_loader, valid_loader, hyps)
 
     # loss plot
