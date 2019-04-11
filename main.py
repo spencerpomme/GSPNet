@@ -46,9 +46,12 @@ def f(worker):
 
 if __name__ == '__main__':
 
+    DIRNAME = 'validation'
+
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
     taxi = source.DatabaseSource('cleaned_small_yellow_2018_full',
-                                 ('2018-01-01 00:00:00', '2019-01-01 00:00:00'))
+                                 ('2018-06-01 00:00:00', '2018-09-01 00:00:00')
+                                 )
     taxi.load()
 
     tables = taxi.table_pool
@@ -65,7 +68,7 @@ if __name__ == '__main__':
 
             # wp = worker.Worker(k, tables[k], rule.TimeSlice(*list(map(str, sub_ranges[k])), freq='10min'), 'full_year_10min', True)
             wp = worker.Worker(k, tables[k], rule.TimeSlice(
-                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/full_year_2018_{freq}', True)
+                *list(map(str, sub_ranges[k])), freq=freq), f'tensor_dataset/{DIRNAME}_{freq}', True)
             workers.append(wp)
 
         print(f'Start generating tensors with freq {freq} at {time.ctime()}\n')
