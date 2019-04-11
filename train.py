@@ -281,6 +281,35 @@ def batch_dataset(states, sequence_length, batch_size):
     Return:
         DataLoader with batched data
     """
+    # TODO: merger below commented lines into this function.
+    # train_iter = iglob(train_dir + '/*')
+    # valid_iter = iglob(valid_dir + '/*')
+
+    # train_states = []
+    # valid_states = []
+
+    # print('Loading dataset...')
+    # print('Loading training set...')
+    # for state in tqdm(train_iter, ascii=True):
+    #     state = torch.load(state).numpy()
+    #     train_states.append(state)
+    # print('Loading validation set...')
+    # for state in tqdm(valid_iter, ascii=True):
+    #     state = torch.load(state).numpy()
+    #     valid_states.append(state)
+
+    # train_states = np.array(train_states)
+    # valid_states = np.array(valid_states)
+
+    # train_states = train_states.reshape((len(train_states), -1))
+    # valid_states = valid_states.reshape((len(valid_states), -1))
+    # train_states = train_states.astype('float32')
+    # valid_states = valid_states.astype('float32')
+
+    # train_loader = batch_dataset(train_states, sequence_length, batch_size)
+    # valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
+    # print('Dataset Loaded.')
+
     num_batches = len(states) // sequence_length
 
     # only full batches
@@ -614,34 +643,6 @@ if __name__ == '__main__':
     # Initialize data loaders
     train_dir = 'tensor_dataset/full_year_15min/tensors'
     valid_dir = 'tensor_dataset/validation_15min/tensors'
-
-    # train_iter = iglob(train_dir + '/*')
-    # valid_iter = iglob(valid_dir + '/*')
-
-    # train_states = []
-    # valid_states = []
-
-    # print('Loading dataset...')
-    # print('Loading training set...')
-    # for state in tqdm(train_iter, ascii=True):
-    #     state = torch.load(state).numpy()
-    #     train_states.append(state)
-    # print('Loading validation set...')
-    # for state in tqdm(valid_iter, ascii=True):
-    #     state = torch.load(state).numpy()
-    #     valid_states.append(state)
-
-    # train_states = np.array(train_states)
-    # valid_states = np.array(valid_states)
-
-    # train_states = train_states.reshape((len(train_states), -1))
-    # valid_states = valid_states.reshape((len(valid_states), -1))
-    # train_states = train_states.astype('float32')
-    # valid_states = valid_states.astype('float32')
-
-    # train_loader = batch_dataset(train_states, sequence_length, batch_size)
-    # valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
-    # print('Dataset Loaded.')
 
     # LSTM data loader
     train_set = S2FDatasetRAM(train_dir, sequence_length)
