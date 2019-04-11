@@ -117,12 +117,15 @@ class S2FDataset(data.Dataset):
         # Load data and get label
         X = []
         for i in range(self.seq_len):
-            x = torch.load(self.idict[index + i])
+            x = torch.load(self.idict[index + i]).numpy()
             X.append(x)
         X = np.array(X).astype('float32')
         X = X.reshape((len(X), -1))
         X = torch.from_numpy(X)
-        y = torch.load(self.idict[index + seq_len])
+        y = torch.load(self.idict[index + self.seq_len])
+
+        # flatten y to be the same dimention as X
+        y = y.reshape((len(X), -1))
 
         return X, y
 
@@ -272,6 +275,9 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
     # perform backpropagation and optimization
     # calculate the loss and perform backprop
+    print('*' * 20)
+    print(f'output shape: {output.shape} | target shape: {target.shape}')
+    print('*' * 20)
     loss = criterion(output, target)
     loss.backward()
 
@@ -406,9 +412,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
 
 # training function of CNN classification
+# TODO: this function is not done.
 def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
-                     clip=5, stop_criterion=20,
+                     stop_criterion=20,
                      show_every_n_batches=1000):
     '''
     Train a CNN classifier with the given hyperparameters.
@@ -421,8 +428,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
         n_epochs:           Total go through of entire dataset
         train_loader:       Training data loader
         valid_loader:       Validation data loader
-        hyps:               A dict containing model parameters
-        clip:               Clip the overly large gradient
+        chyps:               A dict containing hyperparameters
         show_every_batches: Display loss every this number of time steps
 
     Returns:
@@ -432,7 +438,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
     torch.cuda.empty_cache()
     # start timing
     start = time.time()
-    print(f'Training started at {time.ctime()}')
+    print(f'Training classifier started at {time.ctime()}')
     # validation constants
     early_stop_count = 0
     valid_loss_min = np.inf
@@ -448,55 +454,41 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
     print("Training for %d epoch(s)..." % n_epochs)
     for epoch_i in range(1, n_epochs + 1):
 
-        hidden = model.init_hidden(batch_size)
-
         # early stop mechanism:
         if early_stop_count >= stop_criterion:
             print(
                 f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
             break
 
-        for batch_i, (inputs, labels) in enumerate(train_loader, 1):
-
-            # make sure you iterate over completely full batches, only
-            n_batches = len(train_loader.dataset) // batch_size
-            if batch_i > n_batches:
-                break
+        for data, label in train_loader:
 
             # forward, back prop
-            # print(f'inputs shape: {inputs.shape} labels shape: {labels.shape}')
-            # print(f'inputs dtype: {inputs[0][0][0].dtype} label shape: {labels[0][0].dtype}')
-            inputs, labels = inputs.cuda(), labels.cuda()
-
-            loss, hidden = forward_back_prop(
-                model, optimizer, criterion, inputs, labels, hidden, clip
-            )
+            data, label = data.cuda(), label.cuda()
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, label)
+            loss.backward()
+            optimizer.step()
 
             # record loss
-            train_losses.append(loss)
+            train_losses.append(loss.item() * data.size(0))
 
-            # print loss every show_every_n_batches batches
-            # including validation loss
+            # print loss every show_every_n_batches batches including validation loss
             if batch_i % show_every_n_batches == 0:
                 # get validation loss
-                val_h = model.init_hidden(batch_size)
                 valid_losses = []
 
                 # switch to validation mode
                 model.eval()
 
-                for v_inputs, v_labels in valid_loader:
+                for v_data, v_label in valid_loader:
 
-                    v_inputs, v_labels = v_inputs.cuda(), v_labels.cuda()
+                    v_data, v_label = v_data.cuda(), v_label.cuda()
 
-                    # Creating new variables for the hidden state, otherwise
-                    # we'd backprop through the entire training history
-                    val_h = tuple([each.data for each in val_h])
+                    v_output = model(v_data)
+                    val_loss = criterion(v_output, v_label)
 
-                    v_output, val_h = model(v_inputs, val_h)
-                    val_loss = criterion(v_output, v_labels)
-
-                    valid_losses.append(val_loss.item())
+                    valid_losses.append(val_loss.item() * data.size(0))
 
                 model.train()
                 avg_val_loss = np.mean(valid_losses)
@@ -518,7 +510,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
                 else:
                     early_stop_count += 1
                     torch.save(model.state_dict(),
-                               f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
+                               f'trained_models/CNN-lr{hyps["lr"]}.pt')
 
                 train_losses = []
                 valid_losses = []
@@ -603,6 +595,15 @@ if __name__ == '__main__':
     # train_loader = batch_dataset(train_states, sequence_length, batch_size)
     # valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
     # print('Dataset Loaded.')
+
+    # LSTM data loader
+    train_set = S2FDataset(train_dir, sequence_length)
+    valid_set = S2FDataset(valid_dir, sequence_length)
+    train_loader = DataLoader(train_set, shuffle=False,
+                              batch_size=batch_size, num_workers=0)
+
+    valid_loader = DataLoader(valid_set, shuffle=False,
+                              batch_size=batch_size, num_workers=0)
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
