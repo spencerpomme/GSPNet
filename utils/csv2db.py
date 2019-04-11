@@ -33,9 +33,6 @@ from multiprocessing import cpu_count
 
 
 # Numpy dtype -> PostgreSQL type convertion dictionary
-
-
-
 def project(file: str, cols: list):
     '''
     Read a csv file to a numpy array
@@ -57,7 +54,6 @@ def analysis(file: str):
         Information about the .csv file
     '''
     tb = pd.read_csv(file)
-
 
 
 if __name__ == '__main__':
