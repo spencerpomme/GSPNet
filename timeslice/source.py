@@ -73,9 +73,9 @@ class Source:
             self.table['tpep_dropoff_datetime'])
 
 
-#========================#
-# Data source: .csv file #
-#========================#
+# ======================== #
+#  Data source: .csv file  #
+# ======================== #
 class CSVSource(Source):
     '''
     Data source class when the data source is a .csv file.
@@ -131,7 +131,7 @@ class CSVSource(Source):
         initialization time to get more flexibility.
         '''
         try:
-             # read csv file and format time related colums
+            # read csv file and format time related colums
             temp = pd.read_csv(self.file)
             self.table = temp.loc[:, ['tripid',
                                       'tpep_pickup_datetime',
@@ -165,9 +165,9 @@ class CSVSource(Source):
         pass
 
 
-#==================================#
-# Data source: relational database #
-#==================================#
+# ==================================#
+#  Data source: relational database #
+# ==================================#
 class DatabaseSource(Source):
     '''
     Data source class when the data source is a relational database.
@@ -350,8 +350,8 @@ class DatabaseSource(Source):
     def _concurrent_split(self, granularity: str = '1W-MON'):
         '''
         Saperate a query that returns a potentially large table into several
-        sub queries and then do them concurrently. 
-        
+        sub queries and then do them concurrently.
+
         For example, when set granularity to 1 week, then if the big_bound is
         an period of 1 month, then the query will be divided into 30 sub queries,
         each returns a data of 1 day.
@@ -407,7 +407,7 @@ class DatabaseSource(Source):
             etp: datatime string, end time point of a concurrent unit
             freq: frequency, time interval unit of the splice operation
                   The supported frequency units are:
-                  
+
                     Alias	    Description
                     B	        business day frequency
                     C	        custom business day frequency
@@ -415,7 +415,7 @@ class DatabaseSource(Source):
                     W	        weekly frequency
                     M	        month end frequency
                     H	        hourly frequency
-                    
+
         The stp and etp must of pattern "yyyy-mm-dd hh:mm:ss", otherwise
         exception will be raised.
 
