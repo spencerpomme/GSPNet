@@ -122,10 +122,10 @@ class S2FDataset(data.Dataset):
         X = np.array(X).astype('float32')
         X = X.reshape((len(X), -1))
         X = torch.from_numpy(X)
-        y = torch.load(self.idict[index + self.seq_len])
+        y = torch.load(self.idict[index + self.seq_len]).type(torch.float32)
 
         # flatten y to be the same dimention as X
-        y = y.reshape((len(X), -1))
+        y = y.flatten()
 
         return X, y
 
@@ -275,9 +275,6 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
     # perform backpropagation and optimization
     # calculate the loss and perform backprop
-    print('*' * 20)
-    print(f'output shape: {output.shape} | target shape: {target.shape}')
-    print('*' * 20)
     loss = criterion(output, target)
     loss.backward()
 
@@ -525,9 +522,9 @@ if __name__ == '__main__':
 
     # Data params
     # Sequence Length
-    sequence_length = 6  # of time slices in a sequence
+    sequence_length = 48  # of time slices in a sequence
     # Batch Size
-    batch_size = 2
+    batch_size = 128
     # Gradient clip
     clip = 5
 
@@ -535,7 +532,7 @@ if __name__ == '__main__':
     # Number of Epochs
     epochs = 20
     # Learning Rate
-    learning_rate = 0.0001
+    learning_rate = 0.001
 
     # Model parameters
     # Vocab size
@@ -549,7 +546,7 @@ if __name__ == '__main__':
     # Dropout probability
     drop_prob = 0.4
     # Show stats for every n number of batches
-    senb = 3000
+    senb = 1000
 
     # wrap essential info into dictionary:
     hyps = {
@@ -600,10 +597,10 @@ if __name__ == '__main__':
     train_set = S2FDataset(train_dir, sequence_length)
     valid_set = S2FDataset(valid_dir, sequence_length)
     train_loader = DataLoader(train_set, shuffle=False,
-                              batch_size=batch_size, num_workers=0)
+                              batch_size=batch_size, num_workers=6)
 
     valid_loader = DataLoader(valid_set, shuffle=False,
-                              batch_size=batch_size, num_workers=0)
+                              batch_size=batch_size, num_workers=6)
 
     # initialize model
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
