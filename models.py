@@ -88,11 +88,10 @@ class VanillaStateRNN(nn.Module):
             hidden: hidden state of t
         '''
         batch_size = x.size(0)
-
+        # The below three lines are for debug use, DO NOT remove.
         # print('*' * 20)
         # print(f'x shape: {x.shape}')
         # print(f'hidden[0] size is: {hidden[0].shape} | expected hidden[0] is {(2, x.size(0), 1024)}')
-        # print('*' * 20)
 
         # reshape hidden state, because using multiple GPUs
         hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
