@@ -580,13 +580,13 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
 if __name__ == '__main__':
 
     # LSTM Model Data params
-    sequence_length = 24  # number of time slices in a sequence
+    sequence_length = 48  # number of time slices in a sequence
     clip = 5
 
     # Training parameters
     epochs = 20
     learning_rate = 0.001
-    batch_size = 128
+    batch_size = 256
 
     # Model parameters
     input_size = 69*69*3
@@ -596,7 +596,7 @@ if __name__ == '__main__':
     n_layers = 2
     drop_prob = 0.4
     # Show stats for every n number of batches
-    senb = 1
+    senb = 2000
 
     # wrap essential info into dictionary:
     hyps = {
@@ -612,8 +612,8 @@ if __name__ == '__main__':
     train_on_gpu = torch.cuda.is_available()
 
     # Initialize data loaders
-    train_dir = 'tensor_dataset/full_year_2018_15min/tensors'
-    valid_dir = 'tensor_dataset/nn_test_15min_val/tensors'
+    train_dir = 'tensor_dataset/full_year_15min/tensors'
+    valid_dir = 'tensor_dataset/validation_15min/tensors'
 
     # train_iter = iglob(train_dir + '/*')
     # valid_iter = iglob(valid_dir + '/*')
