@@ -45,7 +45,7 @@ class VanillaStateRNN(nn.Module):
     A simple LSTM model, without any preprocessing to the inputs.
     '''
     def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
-                 drop_prob=0.5, lr=0.001, train_on_gpu=True):
+                 drop_prob=0.5, train_on_gpu=True):
         '''
         LSTM model initialization.
 
@@ -63,7 +63,6 @@ class VanillaStateRNN(nn.Module):
         self.hidden_dim = hidden_dim
         self.n_layers = n_layers
         self.drop_prob = drop_prob
-        self.lr = lr
         self.train_on_gpu = train_on_gpu
 
         # define the LSTM
@@ -77,7 +76,7 @@ class VanillaStateRNN(nn.Module):
 
     def forward(self, x, hidden):
         '''
-        Forward pass through the network. 
+        Forward pass through the network.
         These inputs are x, and the hidden/cell state `hidden`.
 
         Args:
@@ -87,8 +86,17 @@ class VanillaStateRNN(nn.Module):
         Returns:
             out:    output of current time step
             hidden: hidden state of t
-        '''        
+        '''
         batch_size = x.size(0)
+
+        # print('*' * 20)
+        # print(f'x shape: {x.shape}')
+        # print(f'hidden[0] size is: {hidden[0].shape} | expected hidden[0] is {(2, x.size(0), 1024)}')
+        # print('*' * 20)
+
+        # reshape hidden state, because using multiple GPUs
+        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
+
         lstm_out, hidden = self.lstm(x, hidden)
         lstm_out = lstm_out.contiguous().view(-1, self.hidden_dim)
         out = self.fc(lstm_out)
@@ -98,6 +106,9 @@ class VanillaStateRNN(nn.Module):
         # get the last output, because we decide the output traffic state is
         # caused by previous N (N >= 2) states.
         out = out[:, -1]
+
+        # reshape hidden state, because using multiple GPUs
+        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
 
         # return the final output and the hidden state
         return out, hidden
@@ -117,11 +128,11 @@ class VanillaStateRNN(nn.Module):
         weight = next(self.parameters()).data
 
         if self.train_on_gpu:
-            hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda(),
-                      weight.new(self.n_layers, batch_size, self.hidden_dim).zero_().cuda())
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda(),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda())
         else:
-            hidden = (weight.new(self.n_layers, batch_size, self.hidden_dim).zero_(),
-                      weight.new(self.n_layers, batch_size, self.hidden_dim).zero_())
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
 
         return hidden
 
