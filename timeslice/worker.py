@@ -227,7 +227,7 @@ def create_adjacency_matrix(arr, am, ly: int):
     Returns:
         am: a filled adjacency matrix 2d numpy array
     '''
-    # Don't touch this dict unless you know what you're doing!
+    # Don't touch this dict unless you know what you're doing.
     mapping = {
         4: 0,   12: 1,   13: 2,   24: 3,   41: 4,   42: 5,
         43: 6,   45: 7,   48: 8,   50: 9,   68: 10,  74: 11,
@@ -250,27 +250,6 @@ def create_adjacency_matrix(arr, am, ly: int):
            ly] += 1
 
     return am
-
-
-# adjacency matrix creater function
-# @jit(nopython=True, parallel=True)
-# def create_adjacency_matrix(arr, am):
-#     '''
-#     Fill in values into the provided am(adjacency matrxi) with the connection info
-#     numpy array.
-
-#     Args:
-#         arr: OD information, 2d numpy array
-#         am: adjacency matrix, zero 2d numpy array
-
-#     Returns:
-#         am: a filled adjacency matrix 2d numpy array
-#     '''
-#     for i in range(arr.shape[0]):
-#         # this twisted roundabout is due to not supported feature for iterating 2d arrays:
-#         am[arr[i, :][3], arr[i, :][4]] += 1
-
-#     return am
 
 
 # numba enhanced version
@@ -436,6 +415,7 @@ class Worker:
         Returns:
             table: pandas DataFrame
         '''
+        # The 2 commented lines below is for debugging use.
         # print(f'before cleansing table size: {table.shape}')
         mapping = {
             '4': 0,   '12': 1,   '13': 2,   '24': 3,   '41': 4,   '42': 5,
@@ -468,10 +448,10 @@ class Worker:
             pid: a number indicating the generation process id
 
 
-        ***************************| benchmark |****************************
-        | A full run of entire 2017 data (yellow regions) is approximately |
-        | 100 minutes, which is extremely slow.                            |
-        ********************************************************************
+        ***************************| benchmark |*****************************
+        | A full run of entire year data (yellow regions) was approximately |
+        | 100 minutes, which was slow. Now it needs less than 10 minutes.   |
+        *********************************************************************
         '''
         for i, bound in enumerate(self.rule.fragments):
 
