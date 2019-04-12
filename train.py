@@ -37,10 +37,14 @@ from torch.utils import data
 from torch.utils.data import TensorDataset, DataLoader
 from glob import iglob, glob
 from matplotlib import pyplot as plt
+from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
 # import models
 from models import *
+
+# Environment global variable
+TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
 # Customized RNN/LSTM datasets when dataset are to big to load at once into RAM
@@ -164,7 +168,7 @@ class S2FDatasetRAM(data.Dataset):
 
         # load all tensor into RAM
         tensors = []
-        for path in self.paths:
+        for path in tqdm(self.paths, total=self.length, ascii=True):
             tensor = torch.load(path).numpy()
             tensors.append(tensor)
         tensors = np.array(tensors).astype('float32')
@@ -314,8 +318,6 @@ def batch_dataset(states, sequence_length, batch_size):
 
     # only full batches
     states = states[: num_batches * sequence_length]
-
-    # TODO: Implement function
     features, targets = [], []
 
     for idx in range(0, (len(states) - sequence_length)):
@@ -353,7 +355,10 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     h = tuple([each.data for each in hidden])
 
     # zero accumulated gradients
-    model.zero_grad()
+    if TRAIN_ON_MULTI_GPUS:
+        model.module.zero_grad()
+    else:
+        model.zero_grad()
 
     # print(f'input shape: {inp}, target shape: {target}')
     # get the output from the model
@@ -365,7 +370,10 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     loss.backward()
 
     # 'clip_grad_norm' helps prevent the exploding gradient problem in RNNs / LSTMs
-    nn.utils.clip_grad_norm_(model.parameters(), clip)
+    if TRAIN_ON_MULTI_GPUS:
+        nn.utils.clip_grad_norm_(model.module.parameters(), clip)
+    else:
+        nn.utils.clip_grad_norm_(model.parameters(), clip)
     optimizer.step()
 
     # return the loss over a batch and the hidden state produced by our model
@@ -374,9 +382,8 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 # training function for sequential prediction
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
-               train_loader, valid_loader, hyps,
-               clip=5, stop_criterion=20,
-               show_every_n_batches=1):
+               train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
+               show_every_n_batches=1, multi_gpus=True):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -415,7 +422,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
     print("Training for %d epoch(s)..." % n_epochs)
     for epoch_i in range(1, n_epochs + 1):
 
-        hidden = model.init_hidden(batch_size)
+        if TRAIN_ON_MULTI_GPUS:
+            hidden = model.module.init_hidden(batch_size)
+        else:
+            hidden = model.init_hidden(batch_size)
 
         # early stop mechanism:
         if early_stop_count >= stop_criterion:
@@ -448,7 +458,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
             # including validation loss
             if batch_i % show_every_n_batches == 0:
                 # get validation loss
-                val_h = model.init_hidden(batch_size)
+                if TRAIN_ON_MULTI_GPUS:
+                    val_h = model.module.init_hidden(batch_size)
+                else:
+                    val_h = model.init_hidden(batch_size)
                 valid_losses = []
 
                 # switch to validation mode
@@ -498,7 +511,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
 # training function of CNN classification
 # TODO: this function is not done.
-def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
+def train_classifier(model, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
                      stop_criterion=20,
                      show_every_n_batches=1000):
@@ -507,7 +520,6 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
 
     Args:
         model:              The PyTorch Module that holds the neural network
-        batch_size:         batch size, integer
         optimizer:          The PyTorch optimizer for the neural network
         criterion:          The PyTorch loss function
         n_epochs:           Total go through of entire dataset
@@ -545,6 +557,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
                 f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
             break
 
+        counter = 0
         for data, label in train_loader:
 
             # forward, back prop
@@ -559,7 +572,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
             train_losses.append(loss.item() * data.size(0))
 
             # print loss every show_every_n_batches batches including validation loss
-            if batch_i % show_every_n_batches == 0:
+            if counter % show_every_n_batches == 0:
                 # get validation loss
                 valid_losses = []
 
@@ -583,12 +596,12 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss}  Val Loss {avg_val_loss}')
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss:4f}  Val Loss {avg_val_loss:4f}')
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
-                    print(
-                        f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
+
+                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
                     valid_loss_min = avg_val_loss
                     early_stop_count = 0
 
@@ -600,6 +613,7 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
                 train_losses = []
                 valid_losses = []
 
+            couter += 1
     # returns a trained model
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
@@ -609,23 +623,23 @@ def train_classifier(model, batch_size, optimizer, criterion, n_epochs,
 if __name__ == '__main__':
 
     # LSTM Model Data params
-    sequence_length = 48  # number of time slices in a sequence
+    sequence_length = 3  # number of time slices in a sequence
     clip = 5
 
     # Training parameters
     epochs = 20
     learning_rate = 0.001
-    batch_size = 256
+    batch_size = 1024
 
     # Model parameters
-    input_size = 69*69*3
+    input_size = 69 * 69 * 3
     output_size = input_size
-    hidden_dim = 1024
+    hidden_dim = 512
     # Number of RNN Layers
     n_layers = 2
-    drop_prob = 0.4
+    drop_prob = 0.5
     # Show stats for every n number of batches
-    senb = 2000
+    senb = 5000
 
     # wrap essential info into dictionary:
     hyps = {
@@ -637,12 +651,9 @@ if __name__ == '__main__':
         'dp': drop_prob
     }
 
-    # Environment parameter
-    train_on_gpu = torch.cuda.is_available()
-
     # Initialize data loaders
-    train_dir = 'tensor_dataset/full_year_15min/tensors'
-    valid_dir = 'tensor_dataset/validation_15min/tensors'
+    train_dir = 'tensor_dataset/train_15min/tensors'
+    valid_dir = 'tensor_dataset/valid_15min/tensors'
 
     # LSTM data loader
     train_set = S2FDatasetRAM(train_dir, sequence_length)
@@ -657,11 +668,19 @@ if __name__ == '__main__':
     model = VanillaStateRNN(input_size, output_size, hidden_dim,
                             n_layers=n_layers, drop_prob=drop_prob)
 
-    if train_on_gpu:
+    # model training device
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+    elif torch.cuda.is_available():
         model = model.cuda()
+    else:
+        print('Training on CPU, very long training time is expectable.')
 
     # optimizer and criterion(loss function)
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    if TRAIN_ON_MULTI_GPUS:
+        optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
     # start training
@@ -672,6 +691,12 @@ if __name__ == '__main__':
     tl, vl = tlvl
     x = np.arange(len(tl))
 
-    plt.plot(x, tl, 'r-')
-    plt.plot(x, vl, 'b-')
+    train_curve, = plt.plot(x, tl, 'r-', label='train loss')
+    valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
+    plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
+    
+    plt.savefig(
+        'trained_models' +
+        f'/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+        )
     plt.show()
