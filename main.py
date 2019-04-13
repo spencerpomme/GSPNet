@@ -46,16 +46,24 @@ def f(worker):
 
 
 # main entry point of this module
-def run(destdir: str):
+def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
     '''
     Main function of this data generation module.
+    Args:
+        source: database table name string
+        stp: start time point string
+        etp: end time point string
+        destdir: folder name string, under /tensor_data folder
+        freqs: list of time interval strings
+    Example:
+        run('cleaned_small_yellow_2018_full',
+            '2018-06-01 00:00:00', '2018-07-01 00:00:00',
+            'test', ['10min', '15min'])
     '''
     DIRNAME = destdir
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource('cleaned_small_yellow_2018_full',
-                                 ('2018-06-01 00:00:00', '2018-07-01 00:00:00')
-                                 )
+    taxi = source.DatabaseSource(source,(stp, etp))
     taxi.load()
 
     tables = taxi.table_pool
@@ -64,7 +72,7 @@ def run(destdir: str):
 
     total_start = time.time()
     # seems that only interval between 10min and 15min are usable.
-    for freq in ['15min']:
+    for freq in freqs:
         # multi processing generate data
 
         workers = []
@@ -98,5 +106,14 @@ def run(destdir: str):
 
 if __name__ == '__main__':
 
-    
-    run('test')
+    # parser = argparse.ArgumentParser(
+    #     description='Generate tensor data for GSPNet project.')
+
+    # parser.add_argument('-s', action='store', dest='source', default='cleaned_small_yellow_2018_full')
+    # parser.add_argument('-l', action='store', dest='stp')
+    # parser.add_argument('-r', action='store', dest='etp')
+    # parser.add_argument('-d', action='store', dest='destdir', default='test')
+    # parser.add_argument('-f', action='store', dest='freqs')
+
+    run('cleaned_small_yellow_2018_full', '2018-06-01 00:00:00',
+        '2018-07-01 00:00:00', 'test', ['15min'])
