@@ -40,11 +40,14 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
+# Environment global variable
+TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
+
 
 # TODO: finish this class
 def generate(model, init_states, predict_len=4):
     '''
-    Generate text using the neural network
+    Generate future states using the trained neural network.
 
     Args:
         model:        The PyTorch Module that holds the trained neural network
@@ -55,7 +58,7 @@ def generate(model, init_states, predict_len=4):
     '''
     model.eval()
 
-    # create a sequence (batch_size=1) with the prime_id
+    # create a sequence (batch_size=1) with init_states
     current_seq = np.full((1, sequence_length), pad_value)
     current_seq[-1][-1] = prime_id
     predicted = [int_to_vocab[prime_id]]
@@ -67,7 +70,7 @@ def generate(model, init_states, predict_len=4):
             current_seq = torch.LongTensor(current_seq)
 
         # initialize the hidden state
-        if train_on_multi_gpus:
+        if TRAIN_ON_MULTI_GPUS:
             hidden = model.module.init_hidden(current_seq.size(0))
         else:
             hidden = model.init_hidden(current_seq.size(0))
