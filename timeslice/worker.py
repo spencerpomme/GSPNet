@@ -495,3 +495,8 @@ class Worker:
                 # resize to x50
                 image = image.resize((345, 345))
                 image.save(image_path)
+
+
+if __name__ == '__main__':
+
+    print('Module worker is a part of GSPNet project. All rights reserved.')
