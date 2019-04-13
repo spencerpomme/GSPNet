@@ -487,11 +487,14 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 tl.append(avg_tra_loss)
                 vl.append(avg_val_loss)
                 # printing loss stats
-                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss:4f}  Val Loss {avg_val_loss:4f}')
+                print(
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:4f} | Val Loss {avg_val_loss:4f} | Min Val {valid_loss_min}',
+                    flush=True)
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
-                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
+
+                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...', flush=True)
                     torch.save(model.state_dict(),
                                f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
                     valid_loss_min = avg_val_loss
@@ -596,12 +599,13 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4}  Loss: {avg_tra_loss:4f}  Val Loss {avg_val_loss:4f}')
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:4f} | Val Loss {avg_val_loss:4f} | Min Val {valid_loss_min}',
+                    flush=True)
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
 
-                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...')
+                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...', flush=True)
                     torch.save(model.state_dict(),
                                f'trained_models/CNN-lr{hyps["lr"]}.pt')
                     valid_loss_min = avg_val_loss
@@ -623,13 +627,13 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 if __name__ == '__main__':
 
     # LSTM Model Data params
-    sequence_length = 192  # number of time slices in a sequence
+    sequence_length = 25  # number of time slices in a sequence
     clip = 5
 
     # Training parameters
     epochs = 20
     learning_rate = 0.001
-    batch_size = 4
+    batch_size = 512
 
     # Model parameters
     input_size = 69 * 69 * 3  # <- don't change this value
