@@ -80,11 +80,9 @@ class VanillaStateRNN(nn.Module):
         '''
         Forward pass through the network.
         These inputs are x, and the hidden/cell state `hidden`.
-
         Args:
             x:      input state vector (flattened)
             hidden: hidden state of t-1
-
         Returns:
             out:    output of current time step
             hidden: hidden state of t
@@ -117,7 +115,6 @@ class VanillaStateRNN(nn.Module):
     def init_hidden(self, batch_size):
         '''
         Initializes hidden state.
-
         Args:
             batch_size: divide the traffic state sequence into batch_size equally long
                         sub-sequences, for parallelization.
@@ -150,7 +147,6 @@ class EmbedStateRNN(nn.Module):
                  drop_prob=0.5, train_on_gpu=True):
         '''
         LSTM model initialization.
-
         Args:
             input_size:     dimention of state vector (flattened 3d tensor)
             output_size:    the same shape of input_size, a 3d tensor
@@ -183,12 +179,10 @@ class EmbedStateRNN(nn.Module):
     def forward(self, x, hidden):
         '''
         Forward pass through the network.
-        These inputs are x, and the hidden/cell state `hidden`.
-
+        These inputs are x, and the hidden/cell state `hidden`
         Args:
             x:      input state vector (flattened)
             hidden: hidden state of t-1
-
         Returns:
             out:    output of current time step
             hidden: hidden state of t
