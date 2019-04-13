@@ -336,57 +336,39 @@ def load_model(filename: str):
     return torch.load(save_filename)
 
 
-# data feeder, type 2
-def batch_dataset(states, sequence_length, batch_size):
-    """
+# data feeder, type 2, deprecated
+def batch_dataset(datadir, seq_len):
+    '''
     Batch the neural network data using DataLoader
-
     Args:
-        states:
-        sequence_length: The sequence length of each batch
-        batch_size: batch size
-
+        datadir: Directory storing tensor data
+        seq_len: The sequence length of each batch
     Return:
         DataLoader with batched data
-    """
+    '''
     # TODO: merger below commented lines into this function.
-    # train_iter = iglob(train_dir + '/*')
-    # valid_iter = iglob(valid_dir + '/*')
+    data_iter = iglob(datadir + '/*')
 
-    # train_states = []
-    # valid_states = []
+    states = []
 
-    # print('Loading dataset...')
-    # print('Loading training set...')
-    # for state in tqdm(train_iter, ascii=True):
-    #     state = torch.load(state).numpy()
-    #     train_states.append(state)
-    # print('Loading validation set...')
-    # for state in tqdm(valid_iter, ascii=True):
-    #     state = torch.load(state).numpy()
-    #     valid_states.append(state)
+    print('Loading dataset...')
+    print('Loading training set...')
+    for state in tqdm(data_iter, ascii=True):
+        state = torch.load(state).numpy()
+        states.append(state)
 
-    # train_states = np.array(train_states)
-    # valid_states = np.array(valid_states)
-
-    # train_states = train_states.reshape((len(train_states), -1))
-    # valid_states = valid_states.reshape((len(valid_states), -1))
-    # train_states = train_states.astype('float32')
-    # valid_states = valid_states.astype('float32')
-
-    # train_loader = batch_dataset(train_states, sequence_length, batch_size)
-    # valid_loader = batch_dataset(valid_states, sequence_length, batch_size)
-    # print('Dataset Loaded.')
-
-    num_batches = len(states) // sequence_length
+    states = np.array(states)
+    states = states.reshape((len(states), -1))
+    states = states.astype('float32')
+    num_batches = len(states) // seq_len
 
     # only full batches
-    states = states[: num_batches * sequence_length]
+    states = states[: num_batches * seq_len]
     features, targets = [], []
 
-    for idx in range(0, (len(states) - sequence_length)):
-        features.append(states[idx: idx + sequence_length])
-        targets.append(states[idx + sequence_length])
+    for idx in range(0, (len(states) - seq_len)):
+        features.append(states[idx: idx + seq_len])
+        targets.append(states[idx + seq_len])
 
     data = TensorDataset(torch.from_numpy(np.array(features)),
                          torch.from_numpy(np.array(targets)))
@@ -394,7 +376,6 @@ def batch_dataset(states, sequence_length, batch_size):
     data_loader = torch.utils.data.DataLoader(
         data, shuffle=False, batch_size=batch_size, num_workers=0)
 
-    # return a dataloader
     return data_loader
 
 
