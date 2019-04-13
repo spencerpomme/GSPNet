@@ -651,7 +651,8 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 
                     print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
                     torch.save(model.state_dict(),
-                               f'trained_models/CNN-lr{hyps["lr"]}.pt')
+                               f'trained_models/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
+
                     valid_loss_min = avg_val_loss
                     early_stop_count = 0
 
@@ -846,4 +847,4 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(20, 96, lr=0.001, bs=128, dp=0.5)
+    run_classifier_training(10, 96, lr=0.001, bs=64, dp=0.2)
