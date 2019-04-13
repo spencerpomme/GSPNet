@@ -31,6 +31,7 @@ import os
 import time
 import torch
 import torch.nn.functional as F
+
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 from glob import glob, iglob
@@ -50,8 +51,8 @@ class VanillaStateRNN(nn.Module):
         LSTM model initialization.
 
         Args:
-            input_size:     dimention of state vector (flattened from 3d tensor)
-            output_size:    the same shape of input_size, shall be fold to 3d tensor
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size, a 3d tensor
                             with shape (69, 69, 3) to generate visual image
             hidden_dim:     hidden size of lstm layers
             n_layers:       number of lstm layers
@@ -66,7 +67,8 @@ class VanillaStateRNN(nn.Module):
         self.train_on_gpu = train_on_gpu
 
         # define the LSTM
-        self.lstm = nn.LSTM(input_size, self.hidden_dim, n_layers, dropout=drop_prob, batch_first=True)
+        self.lstm = nn.LSTM(input_size, self.hidden_dim, n_layers,
+                            dropout=drop_prob, batch_first=True)
 
         # dropout layer
         self.dropout = nn.Dropout(self.drop_prob)
@@ -150,8 +152,8 @@ class EmbedStateRNN(nn.Module):
         LSTM model initialization.
 
         Args:
-            input_size:     dimention of state vector (flattened from 3d tensor)
-            output_size:    the same shape of input_size, shall be fold to 3d tensor
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size, a 3d tensor
                             with shape (69, 69, 3) to generate visual image
             hidden_dim:     hidden size of lstm layers
             n_layers:       number of lstm layers
@@ -221,8 +223,8 @@ class EmbedStateRNN(nn.Module):
         Initializes hidden state.
 
         Args:
-            batch_size: divide the traffic state sequence into batch_size equally long
-                        sub-sequences, for parallelization.
+            batch_size: divide the traffic state sequence into batch_size
+                        equally long sub-sequences, for parallelization.
         Returns:
             hidden:     initialized hidden state
         '''
@@ -246,12 +248,14 @@ class PeriodClassifier(nn.Module):
     A Convolutional Neural Network based classifier.
     Determines whether a snapshot is temporally distinguishable by viz.
     '''
-    def __init__(self):
+    def __init__(self, n_classes: int=96):
         '''
         Initialization
+        Args:
+            n_classes: number of classes
         '''
         super(PeriodClassifier, self).__init__()
-        n_classes = 96  # (4 x 24) snapshots per day
+        self.n_classes = n_classes  # (4 x 24) snapshots per day
         # define conv layers
         # in: (69 x 69) out: (33 x 33)
         self.conv1 = nn.Conv2d(3, 33, 5, 2)
@@ -271,7 +275,7 @@ class PeriodClassifier(nn.Module):
         # fully connected layers
         # in (7 x 7 x 128) out (1024)
         self.fc1 = nn.Linear(7*7*128, 1024)
-        self.fc2 = nn.Linear(1024, n_classes)
+        self.fc2 = nn.Linear(1024, self.n_classes)
 
     def forward(self, x):
         '''
