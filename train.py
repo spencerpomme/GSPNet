@@ -287,7 +287,8 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
         self.Xs = []
         self.ys = []
         for path in tqdm(self.paths, total=len(self.paths), ascii=True):
-            X = torch.load(path)
+            X = torch.load(path).type(torch.FloatTensor)
+            X = X.permute(2, 1, 0)
             y = int(self.pattern.findall(path)[0]) % self.n_classes
             self.Xs.append(X)
             self.ys.append(y)
@@ -551,13 +552,13 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:4f} | Val Loss {avg_val_loss:4f} | Min Val {valid_loss_min}',
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
                     flush=True)
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
 
-                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...', flush=True)
+                    print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
                     torch.save(model.state_dict(),
                                f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
                     valid_loss_min = avg_val_loss
@@ -661,13 +662,13 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:4f} | Val Loss {avg_val_loss:4f} | Min Val {valid_loss_min}',
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
                     flush=True)
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
 
-                    print(f'Valid Loss {valid_loss_min:4f} -> {avg_val_loss:4f}. Saving...', flush=True)
+                    print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
                     torch.save(model.state_dict(),
                                f'trained_models/CNN-lr{hyps["lr"]}.pt')
                     valid_loss_min = avg_val_loss
@@ -679,7 +680,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                 train_losses = []
                 valid_losses = []
 
-            couter += 1
+            counter += 1
     # returns a trained model
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
@@ -840,7 +841,7 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.MSELoss()
+    criterion = nn.CrossEntropyLoss()
 
     # start training
     trained_model, tlvl = train_classifier(model, optimizer, criterion, epochs,
