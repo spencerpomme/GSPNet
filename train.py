@@ -561,7 +561,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 def train_classifier(model, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
                      stop_criterion=20,
-                     show_every_n_batches=1000):
+                     show_every_n_batches=100):
     '''
     Train a CNN classifier with the given hyperparameters.
 
@@ -588,6 +588,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     valid_loss_min = np.inf
 
     train_losses = []
+    valid_losses = []
 
     # for plot training loss and validation loss
     tl = []
@@ -604,7 +605,6 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                 f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
             break
 
-        counter = 0
         for data, label in train_loader:
 
             # forward, back prop
@@ -618,51 +618,45 @@ def train_classifier(model, optimizer, criterion, n_epochs,
             # record loss
             train_losses.append(loss.item() * data.size(0))
 
-            # print loss every show_every_n_batches batches including validation loss
-            if counter % show_every_n_batches == 0:
-                # get validation loss
-                valid_losses = []
+            model.eval()
 
-                # switch to validation mode
-                model.eval()
+        for v_data, v_label in valid_loader:
 
-                for v_data, v_label in valid_loader:
+            v_data, v_label = v_data.cuda(), v_label.cuda()
 
-                    v_data, v_label = v_data.cuda(), v_label.cuda()
+            v_output = model(v_data)
+            val_loss = criterion(v_output, v_label)
 
-                    v_output = model(v_data)
-                    val_loss = criterion(v_output, v_label)
+            valid_losses.append(val_loss.item() * data.size(0))
 
-                    valid_losses.append(val_loss.item() * data.size(0))
+        model.train()
+        avg_val_loss = np.mean(valid_losses)
+        avg_tra_loss = np.mean(train_losses)
 
-                model.train()
-                avg_val_loss = np.mean(valid_losses)
-                avg_tra_loss = np.mean(train_losses)
+        tl.append(avg_tra_loss)
+        vl.append(avg_val_loss)
+        # printing loss stats
+        print(
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
+            flush=True)
 
-                tl.append(avg_tra_loss)
-                vl.append(avg_val_loss)
-                # printing loss stats
-                print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
-                    flush=True)
+        # decide whether to save model or not:
+        if avg_val_loss < valid_loss_min:
 
-                # decide whether to save model or not:
-                if avg_val_loss < valid_loss_min:
+            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
+            torch.save(model.state_dict(),
+                        f'trained_models/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
 
-                    print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
-                    torch.save(model.state_dict(),
-                               f'trained_models/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
+            valid_loss_min = avg_val_loss
+            early_stop_count = 0
 
-                    valid_loss_min = avg_val_loss
-                    early_stop_count = 0
+        else:
+            early_stop_count += 1
 
-                else:
-                    early_stop_count += 1
+        # clear
+        train_losses = []
+        valid_losses = []
 
-                train_losses = []
-                valid_losses = []
-
-            counter += 1
     # returns a trained model
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
@@ -847,4 +841,4 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(10, 96, lr=0.001, bs=64, dp=0.2)
+    run_classifier_training(20, 96, lr=0.001, bs=16, dp=0.5)
