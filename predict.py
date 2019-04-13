@@ -42,18 +42,18 @@ from tqdm import tqdm
 
 
 # TODO: finish this class
-def generate(model, init_state, predict_len=4):
+def generate(model, init_states, predict_len=4):
     '''
     Generate text using the neural network
 
     Args:
         model:        The PyTorch Module that holds the trained neural network
-        init_state:   The word id to start the first prediction
+        init_states:  The first N states to start predicting furture states,
         predict_len:  The length of text to generate
     Returns:
         The generated traffic states
     '''
-    rnn.eval()
+    model.eval()
 
     # create a sequence (batch_size=1) with the prime_id
     current_seq = np.full((1, sequence_length), pad_value)
@@ -68,12 +68,12 @@ def generate(model, init_state, predict_len=4):
 
         # initialize the hidden state
         if train_on_multi_gpus:
-            hidden = rnn.module.init_hidden(current_seq.size(0))
+            hidden = model.module.init_hidden(current_seq.size(0))
         else:
-            hidden = rnn.init_hidden(current_seq.size(0))
+            hidden = model.init_hidden(current_seq.size(0))
 
-        # get the output of the rnn
-        output, _ = rnn(current_seq, hidden)
+        # get the output of the model
+        output, _ = model(current_seq, hidden)
 
         # get the next word probabilities
         p = F.softmax(output, dim=1).data
