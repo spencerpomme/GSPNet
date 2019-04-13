@@ -35,7 +35,9 @@ from multiprocessing import cpu_count
 from tqdm import tqdm
 
 
-# 3 classes in this module
+# ========================= #
+#  Data source: base class  #
+# ========================= #
 class Source:
     '''
     Base class of data source.
@@ -177,7 +179,8 @@ class DatabaseSource(Source):
     do the works.
     '''
 
-    def __init__(self, tbname, big_bound=('2017-01-01 00:00:00', '2018-01-01 00:00:00'),
+    def __init__(self, tbname,
+                 big_bound=('2017-01-01 00:00:00', '2018-01-01 00:00:00'),
                  host: str = 'localhost', dbname: str = 'taxi',
                  user: str = 'postgres', concurrent: bool = True):
         '''
@@ -265,7 +268,8 @@ class DatabaseSource(Source):
             # maximum efficient concurrent thread number
             t_unit = cpus * 2 + 1
 
-            # containers to hold generated queries, new thread, started thread and generated dataframes:
+            # containers to hold generated queries, new thread, started thread
+            # and generated dataframes:
             queries = self._concurrent_split()
             thread_pool = Queue()
             thread_buffer = []
@@ -353,16 +357,17 @@ class DatabaseSource(Source):
         sub queries and then do them concurrently.
 
         For example, when set granularity to 1 week, then if the big_bound is
-        an period of 1 month, then the query will be divided into 30 sub queries,
-        each returns a data of 1 day.
+        an period of 1 month, then the query will be divided into
+        30 sub-queries, each returns a data of 1 day.
 
         Args:
             granularity: minimum time unit
-            This granularity is TESTED TO BE MOST EFFICIENT with current hardware.
+            This granularity is EFFICIENT with current hardware.
             Don't change unless necessary!
 
         Returns:
-            queries: a list containing sql string initialized with sub time bounds
+            queries: a list containing sql string initialized with
+            sub time bounds.
         '''
         subs = self._process_granularity(
             self.big_bound[0], self.big_bound[1], freq=granularity)
@@ -399,7 +404,7 @@ class DatabaseSource(Source):
         Function to divide a table according freq (the concurrent time unit).
 
         The main problem solved by this function is alignment and round up of
-        weeks when dividing a month or year into weekly-sub-tables. The arguments
+        weeks when dividing a month or year into weekly-sub-tables. The args
         of this function is kept the same as pandas.date_range function.
 
         Args:
@@ -455,7 +460,7 @@ class DatabaseSource(Source):
 
         Return:
             sub_table: A list of time intervals tuples,each item is a tuple of
-            two interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
+            two interval (pandas.core.indexes.datetimes.DatetimeIndex object)
             For example, a possible return could be:
 
             [(2017-01-01 00:00:00, 2017-01-01 00:10:00),
