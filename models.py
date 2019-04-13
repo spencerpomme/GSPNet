@@ -297,6 +297,18 @@ class PeriodClassifier(nn.Module):
         return x
 
 
+# util functions
+def decide_label(file: str):
+    '''
+    This function hard codes classification criteria to label the tensors.
+    Args:
+        file: a file name string
+    Returns:
+        label: the class label of a given tensor file
+    '''
+    pass
+
+
 if __name__ == '__main__':
 
     print('In main of models.py')
