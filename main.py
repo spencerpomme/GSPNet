@@ -18,7 +18,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Main method of dataset(raw) generation entry point.
+Module of dataset(raw) generation.
 A part of GSPNet project.
 
 '''
@@ -31,11 +31,12 @@ import timeslice.viz as viz  # to be done
 
 import torch
 import time
+import argparse
 from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
 
-from multiprocessing import Process, Pool, cpu_count
 
-
+# multiprocessing function
 def f(worker):
     '''
     Start a worker's generation.
@@ -44,13 +45,16 @@ def f(worker):
     worker.generate()
 
 
-if __name__ == '__main__':
-
-    DIRNAME = 'validation'
+# main entry point of this module
+def run(destdir: str):
+    '''
+    Main function of this data generation module.
+    '''
+    DIRNAME = destdir
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
     taxi = source.DatabaseSource('cleaned_small_yellow_2018_full',
-                                 ('2018-06-01 00:00:00', '2018-09-01 00:00:00')
+                                 ('2018-06-01 00:00:00', '2018-07-01 00:00:00')
                                  )
     taxi.load()
 
@@ -90,3 +94,9 @@ if __name__ == '__main__':
     total_end = time.time()
 
     print(f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
+
+
+if __name__ == '__main__':
+
+    
+    run('test')
