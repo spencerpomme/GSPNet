@@ -213,7 +213,7 @@ class SnapshotClassificationDataset(data.Dataset):
         self.datadir = datadir
         self.combine_fact = combine_fact
 
-        # capture time unit from dir string
+        # capture time unit (10min, 15min, etc) from dir string
         dir_pattern = re.compile('(?<=_)\d+(?=min)')
         interval = int(dir_pattern.findall(self.datadir)[0])
 
@@ -224,7 +224,7 @@ class SnapshotClassificationDataset(data.Dataset):
 
         # actual classes in this setting
         self.n_classes = raw_clss / self.combine_fact
-        self.paths = glob(self.datadir + '/tensors/*.pkl')
+        self.paths = glob(self.datadir + '/*.pkl')
         self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
 
     def __len__(self):
@@ -241,6 +241,69 @@ class SnapshotClassificationDataset(data.Dataset):
         path = self.paths[index]
         X = torch.load(path)
         y = int(self.pattern.findall(path)[0]) % self.n_classes
+
+        return X, y
+
+
+class SnapshotClassificationDatasetRAM(data.Dataset):
+    '''
+    The same dataset as SnapshotClassificationDataset, but load all data into
+    memory.
+    '''
+
+    def __init__(self, datadir: str, n_classes: int):
+        '''
+        Initialization method.
+        Args:
+            datadir: directory containing `tensors` and `viz_images` folder
+            n_classes: number of classes
+
+        Explaination:
+            The n_classes is actually fixed. If the time unit of tensor
+            generation is 15min, then there would be 96 classes. The reason
+            why n_classes is still provided as an argument is to double check
+            the user knows (or, remembers) what he/she is doing.
+        '''
+        self.datadir = datadir
+        self.n_classes = n_classes
+
+        # capture time unit (10min, 15min, etc) from dir string
+        dir_pattern = re.compile('(?<=_)\d+(?=min)')
+        interval = int(dir_pattern.findall(self.datadir)[0])
+
+        # number of snapshots in a day: raw_clss
+        raw_clss = 60 / interval * 24
+        assert raw_clss == int(raw_clss), 'raw_clss should be an whole number'
+        assert self.n_classes == int(raw_clss), 'wrong n_classes number'
+
+        # Patterns to extract key number from tensor path, which is used to
+        # determine the class of that tensor. This is possible thanks to
+        # naming rule of tensors.
+        self.paths = glob(self.datadir + '/*.pkl')
+        assert len(self.paths) != 0, 'glob error!'
+        self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
+
+        # load tensor and labels into RAM
+        self.Xs = []
+        self.ys = []
+        for path in tqdm(self.paths, total=len(self.paths), ascii=True):
+            X = torch.load(path)
+            y = int(self.pattern.findall(path)[0]) % self.n_classes
+            self.Xs.append(X)
+            self.ys.append(y)
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return len(self.paths)
+
+    def __getitem__(self, index):
+        '''
+         Generates one sample of data
+        '''
+        X = self.Xs[index]
+        y = self.ys[index]
 
         return X, y
 
@@ -513,7 +576,6 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
 
 # training function of CNN classification
-# TODO: this function is not done.
 def train_classifier(model, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
                      stop_criterion=20,
@@ -528,7 +590,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         n_epochs:           Total go through of entire dataset
         train_loader:       Training data loader
         valid_loader:       Validation data loader
-        chyps:               A dict containing hyperparameters
+        hyps:               A dict containing hyperparameters
         show_every_batches: Display loss every this number of time steps
 
     Returns:
@@ -624,24 +686,35 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     return model, (tl, vl)
 
 
-if __name__ == '__main__':
-
+# run functions of this module
+def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
+    '''
+    Main function of lstm training.
+    Args:
+        epochs: number of epochs to train
+        sl: sequence_length,
+        bs: batch_size,
+        lr: learning_rate,
+        hd: hidden_dim,
+        nl: n_layers,
+        dp: drop_prob
+    '''
     # LSTM Model Data params
-    sequence_length = 25  # number of time slices in a sequence
+    sequence_length = sl  # number of time slices in a sequence
     clip = 5
 
     # Training parameters
-    epochs = 20
-    learning_rate = 0.001
-    batch_size = 512
+    epochs = epochs
+    learning_rate = lr
+    batch_size = bs
 
     # Model parameters
     input_size = 69 * 69 * 3  # <- don't change this value
     output_size = input_size
-    hidden_dim = 512
+    hidden_dim = hd
     # Number of RNN Layers
-    n_layers = 2
-    drop_prob = 0.5
+    n_layers = nl
+    drop_prob = dp
     # Show stats for every n number of batches
     senb = 5000
 
@@ -702,5 +775,93 @@ if __name__ == '__main__':
     plt.savefig(
         'trained_models' +
         f'/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
-        )
+    )
     plt.show()
+
+
+def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
+    '''
+    Main function of cnn classifier training.
+    Args:
+        epochs: number of epochs to train
+        lr: learning_rate
+        bs: batch_size
+        nc: n classes
+        dp: drop_prob
+
+    '''
+    # Training parameters
+    epochs = epochs
+    learning_rate = 0.001
+    batch_size = bs
+
+    # Model parameters
+    input_size = 69 * 69 * 3  # <- don't change this value
+    n_classes = nc
+    drop_prob = 0.5
+    # Show stats for every n number of batches
+    senb = 5000
+
+    # wrap essential info into dictionary:
+    hyps = {
+        'bs': batch_size,
+        'lr': learning_rate,
+        'nc': n_classes,
+        'dp': drop_prob
+    }
+
+    # Initialize data loaders
+    train_dir = 'tensor_dataset/train_15min/tensors'
+    valid_dir = 'tensor_dataset/valid_15min/tensors'
+
+    # LSTM data loader
+    train_set = SnapshotClassificationDatasetRAM(train_dir, n_classes)
+    valid_set = SnapshotClassificationDatasetRAM(valid_dir, n_classes)
+
+    train_loader = DataLoader(train_set, shuffle=False, batch_size=batch_size,
+                              num_workers=0, drop_last=True)
+
+    valid_loader = DataLoader(valid_set, shuffle=False, batch_size=batch_size,
+                              num_workers=0, drop_last=True)
+
+    # initialize model
+    model = PeriodClassifier(n_classes=n_classes)
+
+    # model training device
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+    elif torch.cuda.is_available():
+        model = model.cuda()
+    else:
+        print('Training on CPU, very long training time is expectable.')
+
+    # optimizer and criterion(loss function)
+    if TRAIN_ON_MULTI_GPUS:
+        optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.MSELoss()
+
+    # start training
+    trained_model, tlvl = train_classifier(model, optimizer, criterion, epochs,
+                                           train_loader, valid_loader, hyps)
+
+    # loss plot
+    tl, vl = tlvl
+    x = np.arange(len(tl))
+
+    train_curve, = plt.plot(x, tl, 'r-', label='train loss')
+    valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
+    plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
+
+    plt.savefig(
+        'trained_models' +
+        f'/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
+    )
+    plt.show()
+
+
+if __name__ == '__main__':
+
+    # run_lstm_training()
+    run_classifier_training(20, 96, lr=0.001, bs=128, dp=0.5)
