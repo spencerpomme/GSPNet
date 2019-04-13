@@ -99,10 +99,10 @@ def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
 
         end = time.time()
         print(
-            f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :2f} seconds.\n\n')
+            f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :.2f} seconds.\n\n')
     total_end = time.time()
 
-    print(f'Entire process of generating tensor datas ended in {total_end-total_start :2f} seconds.')
+    print(f'Entire process of generating tensor datas ended in {total_end-total_start :.2f} seconds.')
 
 
 if __name__ == '__main__':
