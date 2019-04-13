@@ -46,7 +46,7 @@ def f(worker):
 
 
 # main entry point of this module
-def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
+def gen(source: str, stp: str, etp: str, destdir: str, freqs: list):
     '''
     Main function of this data generation module.
     Args:
@@ -56,7 +56,7 @@ def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
         destdir: folder name string, under /tensor_data folder
         freqs: list of time interval strings
     Example:
-        run('cleaned_small_yellow_2018_full',
+        gen('cleaned_small_yellow_2018_full',
             '2018-06-01 00:00:00', '2018-07-01 00:00:00',
             'test', ['10min', '15min'])
     '''
@@ -106,14 +106,5 @@ def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
 
 if __name__ == '__main__':
 
-    # parser = argparse.ArgumentParser(
-    #     description='Generate tensor data for GSPNet project.')
-
-    # parser.add_argument('-s', action='store', dest='source', default='cleaned_small_yellow_2018_full')
-    # parser.add_argument('-l', action='store', dest='stp')
-    # parser.add_argument('-r', action='store', dest='etp')
-    # parser.add_argument('-d', action='store', dest='destdir', default='test')
-    # parser.add_argument('-f', action='store', dest='freqs')
-
-    run('cleaned_small_yellow_2018_full', '2018-06-01 00:00:00',
+    gen('cleaned_small_yellow_2018_full', '2018-06-01 00:00:00',
         '2018-07-01 00:00:00', 'test', ['15min'])
