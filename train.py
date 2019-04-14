@@ -197,33 +197,13 @@ class SnapshotClassificationDataset(data.Dataset):
     of snapshots per day(default) or other specified number. For example, the
     several snapshots (15min) can be recognized as one class of hour X.
     '''
-    def __init__(self, datadir: str, combine_fact: int=1):
+    def __init__(self, datadir: str):
         '''
         Initialization method.
         Args:
             datadir: directory containing `tensors` and `viz_images` folder
-            combine_fact: combine factor, number of adjacent snapshots to be
-                          classified as same class.
-        Example:
-            if combine_fact == 2, then:
-            snap1, snap2, ..., snapN of one day is classified to N/2 classes,
-            (snap1, snap2) is of one class, (snap3, snap4) is of the second
-            class, etc. Note: N % combine_fact should be 0!
         '''
         self.datadir = datadir
-        self.combine_fact = combine_fact
-
-        # capture time unit (10min, 15min, etc) from dir string
-        dir_pattern = re.compile('(?<=_)\d+(?=min)')
-        interval = int(dir_pattern.findall(self.datadir)[0])
-
-        # number of snapshots in a day: raw_clss
-        raw_clss = 60 / interval * 24
-        assert raw_clss == int(raw_clss), 'raw_clss should be an whole number'
-        assert raw_clss % self.combine_fact == 0, 'raw_clss not divisible'
-
-        # actual classes in this setting
-        self.n_classes = raw_clss / self.combine_fact
         self.paths = glob(self.datadir + '/*.pkl')
         self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
 
@@ -240,7 +220,7 @@ class SnapshotClassificationDataset(data.Dataset):
         '''
         path = self.paths[index]
         X = torch.load(path)
-        y = int(self.pattern.findall(path)[0]) % self.n_classes
+        y = decide_label(path)
 
         return X, y
 
@@ -251,12 +231,11 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
     memory.
     '''
 
-    def __init__(self, datadir: str, n_classes: int):
+    def __init__(self, datadir: str):
         '''
         Initialization method.
         Args:
             datadir: directory containing `tensors` and `viz_images` folder
-            n_classes: number of classes
 
         Explaination:
             The n_classes is actually fixed. If the time unit of tensor
@@ -265,16 +244,10 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
             the user knows (or, remembers) what he/she is doing.
         '''
         self.datadir = datadir
-        self.n_classes = n_classes
 
         # capture time unit (10min, 15min, etc) from dir string
         dir_pattern = re.compile('(?<=_)\d+(?=min)')
         interval = int(dir_pattern.findall(self.datadir)[0])
-
-        # number of snapshots in a day: raw_clss
-        raw_clss = 60 / interval * 24
-        assert raw_clss == int(raw_clss), 'raw_clss should be an whole number'
-        assert self.n_classes == int(raw_clss), 'wrong n_classes number'
 
         # Patterns to extract key number from tensor path, which is used to
         # determine the class of that tensor. This is possible thanks to
@@ -289,7 +262,7 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
         for path in tqdm(self.paths, total=len(self.paths), ascii=True):
             X = torch.load(path).type(torch.FloatTensor)
             X = X.permute(2, 1, 0)
-            y = int(self.pattern.findall(path)[0]) % self.n_classes
+            y = decide_label(path)
             self.Xs.append(X)
             self.ys.append(y)
 
@@ -774,7 +747,6 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
 
     # Model parameters
     input_size = 69 * 69 * 3  # <- don't change this value
-    n_classes = nc
     drop_prob = 0.5
     # Show stats for every n number of batches
     senb = 5000
@@ -783,7 +755,7 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
     hyps = {
         'bs': batch_size,
         'lr': learning_rate,
-        'nc': n_classes,
+        'nc': nc,
         'dp': drop_prob
     }
 
@@ -792,8 +764,8 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
     valid_dir = 'tensor_dataset/valid_15min/tensors'
 
     # LSTM data loader
-    train_set = SnapshotClassificationDatasetRAM(train_dir, n_classes)
-    valid_set = SnapshotClassificationDatasetRAM(valid_dir, n_classes)
+    train_set = SnapshotClassificationDatasetRAM(train_dir)
+    valid_set = SnapshotClassificationDatasetRAM(valid_dir)
 
     train_loader = DataLoader(train_set, shuffle=False, batch_size=batch_size,
                               num_workers=0, drop_last=True)
@@ -802,7 +774,7 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
                               num_workers=0, drop_last=True)
 
     # initialize model
-    model = PeriodClassifier(n_classes=n_classes)
+    model = PeriodClassifier(n_classes=nc)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -841,4 +813,4 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(20, 96, lr=0.001, bs=16, dp=0.5)
+    run_classifier_training(20, 24, lr=0.001, bs=8, dp=0.5)
