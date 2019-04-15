@@ -729,7 +729,7 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     plt.show()
 
 
-def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
+def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     '''
     Main function of cnn classifier training.
     Args:
@@ -737,6 +737,8 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
         lr: learning_rate
         bs: batch_size
         nc: n classes
+        vs: valida size, proportion of validation data set
+        rs: random seed
         dp: drop_prob
 
     '''
@@ -760,21 +762,32 @@ def run_classifier_training(epochs, nc, lr=0.001, bs=128, dp=0.5):
     }
 
     # Initialize data loaders
-    train_dir = 'tensor_dataset/train_15min/tensors'
-    valid_dir = 'tensor_dataset/valid_15min/tensors'
+    data_dir = 'tensor_dataset/full_year_2018_15min/tensors'
 
     # LSTM data loader
-    train_set = SnapshotClassificationDatasetRAM(train_dir)
-    valid_set = SnapshotClassificationDatasetRAM(valid_dir)
+    train_set = SnapshotClassificationDatasetRAM(data_dir)
+    valid_set = SnapshotClassificationDatasetRAM(data_dir)
 
-    train_loader = DataLoader(train_set, shuffle=False, batch_size=batch_size,
+    num_train = len(train_set)
+    indices = list(range(num_train))
+    split = int(np.floor(vs * num_train))
+
+    # shuffle
+    np.random.seed(rs)
+    np.random.shuffle(indices)
+
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
+
+    train_loader = DataLoader(train_set, sampler=train_sampler, batch_size=batch_size,
                               num_workers=0, drop_last=True)
 
-    valid_loader = DataLoader(valid_set, shuffle=False, batch_size=batch_size,
+    valid_loader = DataLoader(valid_set, sampler=valid_sampler, batch_size=batch_size,
                               num_workers=0, drop_last=True)
 
     # initialize model
-    model = PeriodClassifier(n_classes=nc)
+    model = PeriodClassifier2(n_classes=nc)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
