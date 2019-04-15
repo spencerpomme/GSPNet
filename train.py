@@ -734,11 +734,11 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     Main function of cnn classifier training.
     Args:
         epochs: number of epochs to train
-        lr: learning_rate
-        bs: batch_size
         nc: n classes
         vs: valida size, proportion of validation data set
         rs: random seed
+        lr: learning_rate
+        bs: batch_size
         dp: drop_prob
 
     '''
@@ -765,10 +765,9 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     data_dir = 'tensor_dataset/2018_full_15min/tensors'
 
     # LSTM data loader
-    train_set = SnapshotClassificationDatasetRAM(data_dir)
-    valid_set = SnapshotClassificationDatasetRAM(data_dir)
+    data_set = SnapshotClassificationDatasetRAM(data_dir)
 
-    num_train = len(train_set)
+    num_train = len(data_set)
     indices = list(range(num_train))
     split = int(np.floor(vs * num_train))
 
@@ -780,10 +779,10 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
 
-    train_loader = DataLoader(train_set, sampler=train_sampler, batch_size=batch_size,
+    train_loader = DataLoader(data_set, sampler=train_sampler, batch_size=batch_size,
                               num_workers=0, drop_last=True)
 
-    valid_loader = DataLoader(valid_set, sampler=valid_sampler, batch_size=batch_size,
+    valid_loader = DataLoader(data_set, sampler=valid_sampler, batch_size=batch_size,
                               num_workers=0, drop_last=True)
 
     # initialize model
