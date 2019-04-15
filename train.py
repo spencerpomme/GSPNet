@@ -34,7 +34,7 @@ import torch
 
 from torch import nn, optim
 from torch.utils import data
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader, SubsetRandomSampler
 from glob import iglob, glob
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
@@ -826,4 +826,4 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(20, 24, lr=0.001, bs=8, dp=0.5)
+    run_classifier_training(20, 2, 0.2, 5, lr=0.001, bs=8, dp=0.5)
