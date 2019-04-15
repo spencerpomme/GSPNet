@@ -787,7 +787,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
                               num_workers=0, drop_last=True)
 
     # initialize model
-    model = PeriodClassifier2(n_classes=nc)
+    model = PeriodClassifier3(n_classes=nc)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -811,7 +811,8 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     # loss plot
     tl, vl = tlvl
     x = np.arange(len(tl))
-
+    # for model 3 of classification only
+    x, tl, vl = x[1:], tl[1:], vl[1:]
     train_curve, = plt.plot(x, tl, 'r-', label='train loss')
     valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
     plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
@@ -826,4 +827,4 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(20, 6, 0.2, 0, lr=0.00001, bs=64, dp=0.5)
+    run_classifier_training(100, 2, 0.1, 0, lr=0.0001, bs=1024, dp=0.5)
