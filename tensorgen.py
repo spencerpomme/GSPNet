@@ -108,4 +108,4 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
 if __name__ == '__main__':
 
     run('cleaned_small_yellow_2018_full', '2018-01-01 00:00:00',
-        '2019-01-01 00:00:00', '2018_full_15min', ['15min'])
+        '2019-01-01 00:00:00', '2018_full', ['15min'])
