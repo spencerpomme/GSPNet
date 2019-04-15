@@ -46,11 +46,11 @@ def f(worker):
 
 
 # main entry point of this module
-def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
+def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
     '''
     Main function of this data generation module.
     Args:
-        source: database table name string
+        src: database table name string
         stp: start time point string
         etp: end time point string
         destdir: folder name string, under /tensor_data folder
@@ -63,7 +63,7 @@ def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
     DIRNAME = destdir
 
     # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
-    taxi = source.DatabaseSource(source, (stp, etp))
+    taxi = source.DatabaseSource(src, (stp, etp))
     taxi.load()
 
     tables = taxi.table_pool
@@ -107,5 +107,5 @@ def run(source: str, stp: str, etp: str, destdir: str, freqs: list):
 
 if __name__ == '__main__':
 
-    run('cleaned_small_yellow_2018_full', '2018-06-01 00:00:00',
-        '2018-07-01 00:00:00', 'test', ['15min'])
+    run('cleaned_small_yellow_2018_full', '2018-01-01 00:00:00',
+        '2019-01-01 00:00:00', '2018_full_15min', ['15min'])
