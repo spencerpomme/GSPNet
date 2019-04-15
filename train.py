@@ -762,7 +762,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     }
 
     # Initialize data loaders
-    data_dir = 'tensor_dataset/full_year_2018_15min/tensors'
+    data_dir = 'tensor_dataset/2018_full_15min/tensors'
 
     # LSTM data loader
     train_set = SnapshotClassificationDatasetRAM(data_dir)
@@ -826,4 +826,4 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 if __name__ == '__main__':
 
     # run_lstm_training()
-    run_classifier_training(20, 2, 0.2, 5, lr=0.001, bs=8, dp=0.5)
+    run_classifier_training(20, 6, 0.2, 0, lr=0.00001, bs=64, dp=0.5)
