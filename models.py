@@ -238,7 +238,7 @@ class EmbedStateRNN(nn.Module):
 
 
 # classification model(s)
-class PeriodClassifier(nn.Module):
+class PeriodClassifier1(nn.Module):
     '''
     A Convolutional Neural Network based classifier.
     Determines whether a snapshot is temporally distinguishable by viz.
@@ -249,7 +249,7 @@ class PeriodClassifier(nn.Module):
         Args:
             n_classes: number of classes
         '''
-        super(PeriodClassifier, self).__init__()
+        super(PeriodClassifier1, self).__init__()
         self.n_classes = n_classes  # (4 x 24) snapshots per day
         # define conv layers
         # in: (69 x 69) out: (33 x 33)
@@ -311,27 +311,20 @@ class PeriodClassifier2(nn.Module):
         Args:
             n_classes: number of classes
         '''
-        super(PeriodClassifier, self).__init__()
+        super(PeriodClassifier2, self).__init__()
         self.n_classes = n_classes  # (4 x 24) snapshots per day
         # define conv layers
         # in: (69 x 69) out: (33 x 33)
         self.conv1 = nn.Conv2d(3, 33, 5, 2)
         # in: (33 x 33) out: (16 x 16)
         self.conv2 = nn.Conv2d(33, 64, 3, 2)
-        # in: (16 x 16) out: (7 x 7)
-        self.conv3 = nn.Conv2d(64, 128, 4, 2)
 
         # dropout layer (p=0.2)
         self.dropout = nn.Dropout(0.2)
 
-        # batch norm layers
-        self.conv_bn1 = nn.BatchNorm2d(33)
-        self.conv_bn2 = nn.BatchNorm2d(64)
-        self.conv_bn3 = nn.BatchNorm2d(128)
-
         # fully connected layers
         # in (7 x 7 x 128) out (1024)
-        self.fc1 = nn.Linear(7*7*128, 1024)
+        self.fc1 = nn.Linear(16*16*64, 1024)
         self.fc2 = nn.Linear(1024, self.n_classes)
 
     def forward(self, x):
@@ -344,14 +337,10 @@ class PeriodClassifier2(nn.Module):
         '''
         # add sequence of convolutional layers
         x = F.relu(self.conv1(x))
-        x = self.conv_bn1(x)
         x = F.relu(self.conv2(x))
-        x = self.conv_bn2(x)
-        x = F.relu(self.conv3(x))
-        x = self.conv_bn3(x)
 
         # flatten tensor input
-        x = x.view(-1, 128 * 7 * 7)
+        x = x.view(-1, 64 * 16 * 16)
         x = self.dropout(x)
         x = self.fc1(x)
         x = self.dropout(x)
@@ -376,8 +365,8 @@ def decide_label(file: str):
     file = file.split('\\')[1]
     i = int(pattern.findall(file)[0][3])
     # 3-hour-a-class
-    labels = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3,
-              3, 4, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7]
+    labels = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1,
+              1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
     label = labels[i]
     return label
 
