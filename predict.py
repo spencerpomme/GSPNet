@@ -45,63 +45,98 @@ TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
 # TODO: finish this class
-def generate(model, init_states, predict_len=4):
+def predict(model, states, hidden, dir):
     '''
     Generate future states using the trained neural network.
 
     Args:
-        model:        The PyTorch Module that holds the trained neural network
-        init_states:  The first N states to start predicting furture states,
-        predict_len:  The length of text to generate
+        model:   The PyTorch Module that holds the trained neural network
+        states:  The first N states to start predicting furture states,
+                      each of them is of shape (3, 69, 69). A numpy ndarray.
+        hidden:  hidden states
+        dir:     A diretory to save generated tensor
     Returns:
         The generated traffic states
     '''
+    states = states.cuda()
+
+    gen_states = []
+    hidden = tuple([each.data for each in hidden])
+
+    out, hidden = model(states, hidden)
+
+    return gen_states, hidden
+
+
+def sample(path, prime_dir, seq_len=None, size=4):
+    '''
+    Sample from the trained prediction model.
+    Args:
+        path: path to the trained model file
+        prime_dir: location containing test tensor data, containing
+                   /tensor and /viz_images.
+        size: number of snapshots to predict
+    Returns:
+        predictions: an array of predicted states
+    '''
+    # decide sequence length from model dir name
+    if not seq_len:
+        pattern = re.compile('(?<=sl)\d+(?=-)')
+        seq_len = int(pattern.findall(path)[0])
+
+    # load model
+    model = torch.load(path)
+    # tensor paths
+    paths = glob(prime_dir + '/*.pkl')
+    primes = []
+
+    # load seq_len paths as the initial states, i.e. prime
+    for p in paths[:seq_len]:
+        tensor = torch.load(p).numpy()
+        primes.append(tensor)
+    primes = np.array(primes).astype('float32')
+    primes = primes.reshape((seq_len, -1))
+    states = torch.from_numpy(primes)
+
+    model = model.cuda()
     model.eval()
+    hidden = model.init_hidden(seq_len)
 
-    # create a sequence (batch_size=1) with init_states
-    current_seq = np.full((1, sequence_length), pad_value)
-    current_seq[-1][-1] = prime_id
-    predicted = [int_to_vocab[prime_id]]
+    # start sampling
+    for i range(size):
+        prediction, hidden = predict(model, states, hidden, '/predicted_states')
+        torch.save(prediction, tensor_path)
 
-    for _ in range(predict_len):
-        if train_on_gpu:
-            current_seq = torch.LongTensor(current_seq).cuda()
-        else:
-            current_seq = torch.LongTensor(current_seq)
 
-        # initialize the hidden state
-        if TRAIN_ON_MULTI_GPUS:
-            hidden = model.module.init_hidden(current_seq.size(0))
-        else:
-            hidden = model.init_hidden(current_seq.size(0))
+def sample(model, init_states, length, dest):
+    '''
+    Generate a length of future traffic state tensors (snapshots).
+    Args:
+        model: trained LSTM model, loaded from serialized file
+        init_states: the initial states
+        length: number of to be generated future states
+        dest: saving destination
+    '''
+    seq_len = len(init_states)
+    batch_size = seq_len
 
-        # get the output of the model
-        output, _ = model(current_seq, hidden)
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+        hidden = model.module.init_hidden(batch_size)
+    elif torch.cuda.is_available():
+        model = model.cuda()
+    # initialize hidden state
+    hidden = model.init_hidden(batch_size)
+    states = init_states
 
-        # get the next word probabilities
-        p = F.softmax(output, dim=1).data
-        if(train_on_gpu):
-            p = p.cpu()  # move to cpu
+    # start sampling
+    preds = []
+    for i in range(length):
 
-        # use top_k sampling to get the index of the next word
-        top_k = 5
-        p, top_i = p.topk(top_k)
-        top_i = top_i.numpy().squeeze()
+        pred, hidden = predict(states, hidden)
+        preds.append(pred)
+        save(pred, dest)
 
-        # select the likely next word index with some element of randomness
-        p = p.numpy().squeeze()
-        word_i = np.random.choice(top_i, p=p/p.sum())
 
-        # retrieve that word from the dictionary
-        word = int_to_vocab[word_i]
-        predicted.append(word)
-
-        # the generated word becomes the next "current sequence" and the cycle can continue
-        if train_on_multi_gpus or train_on_gpu:
-            current_seq = current_seq.cpu()
-        current_seq = np.roll(current_seq, -1, 1)
-        current_seq[-1][-1] = word_i
-
-    gen_sentences = ' '.join(predicted)
-
-    return gen_sentences
+if __name__ == '__main__':
+    print('main')
