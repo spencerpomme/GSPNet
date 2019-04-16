@@ -50,9 +50,9 @@ def predict(model, states, hidden, dir):
     Generate future states using the trained neural network.
 
     Args:
-        model:   The PyTorch Module that holds the trained neural network
-        states:  The first N states to start predicting furture states,
-                      each of them is of shape (3, 69, 69). A numpy ndarray.
+        model:   PyTorch Module that holds the trained neural network
+        states:  first N states to start predicting furture states,
+                 each of them is of shape (1, 69*69)
         hidden:  hidden states
         dir:     A diretory to save generated tensor
     Returns:
@@ -68,18 +68,40 @@ def predict(model, states, hidden, dir):
     return gen_states, hidden
 
 
-def sample(path, prime_dir, seq_len=None, size=4):
+def sample(model, states, length, dest):
     '''
-    Sample from the trained prediction model.
+    Generate a length of future traffic state tensors (snapshots).
     Args:
-        path: path to the trained model file
-        prime_dir: location containing test tensor data, containing
-                   /tensor and /viz_images.
-        size: number of snapshots to predict
-    Returns:
-        predictions: an array of predicted states
+        model: trained LSTM model, loaded from serialized file
+        states: the initial states, shaped (1, 69*69)
+        length: number of to be generated future states
+        dest: saving destination
     '''
-    # decide sequence length from model dir name
+    seq_len = len(states)
+    batch_size = seq_len
+
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+        hidden = model.module.init_hidden(batch_size)
+    elif torch.cuda.is_available():
+        model = model.cuda()
+    # initialize hidden state
+    hidden = model.init_hidden(batch_size)
+
+    # start sampling
+    preds = []
+    for i in range(length):
+
+        pred, hidden = predict(states, hidden)
+        preds.append(pred)
+        save_to(pred, dest)
+    return preds
+
+
+def load(path: str, seq_len: int=None):
+    '''
+    Load seq_len adjacent tensors from a random place.
+    '''
     if not seq_len:
         pattern = re.compile('(?<=sl)\d+(?=-)')
         seq_len = int(pattern.findall(path)[0])
@@ -98,44 +120,37 @@ def sample(path, prime_dir, seq_len=None, size=4):
     primes = primes.reshape((seq_len, -1))
     states = torch.from_numpy(primes)
 
-    model = model.cuda()
-    model.eval()
-    hidden = model.init_hidden(seq_len)
-
-    # start sampling
-    for i range(size):
-        prediction, hidden = predict(model, states, hidden, '/predicted_states')
-        torch.save(prediction, tensor_path)
+    return states
 
 
-def sample(model, init_states, length, dest):
+def save_to(tensor: torch.Tensor, dest: str, id: int):
     '''
-    Generate a length of future traffic state tensors (snapshots).
+    Save a tensor and its visualization image to specified destination.
     Args:
-        model: trained LSTM model, loaded from serialized file
-        init_states: the initial states
-        length: number of to be generated future states
-        dest: saving destination
+        tensor: predicted traffic state tensor, of shape (1, 69*69)
+        dest: destination path of saving
+        id: id of generated tensor/image
     '''
-    seq_len = len(init_states)
-    batch_size = seq_len
+    tensor = tensor.reshape((69, 69, 3))
+    image_dest = dest + '/viz_images' + f'{id}.png'
+    tensor_dest = dest + '/tensors' + f'{id}.pkl'
 
-    if TRAIN_ON_MULTI_GPUS:
-        model = nn.DataParallel(model).cuda()
-        hidden = model.module.init_hidden(batch_size)
-    elif torch.cuda.is_available():
-        model = model.cuda()
-    # initialize hidden state
-    hidden = model.init_hidden(batch_size)
-    states = init_states
+    # save tensor
+    torch.save(tensor, image_dest)
+    # tensor to image
+    tensor = tensor.cpu()
 
-    # start sampling
-    preds = []
-    for i in range(length):
+    # simple normalize
+    tensor *= (255 // tensor.max())
+    tensor = tensor.astype('uint8')
+    image = Image.fromarray(tensor)
 
-        pred, hidden = predict(states, hidden)
-        preds.append(pred)
-        save(pred, dest)
+
+def run():
+    '''
+    '''
+    pass
+
 
 
 if __name__ == '__main__':
