@@ -4,8 +4,10 @@ import numpy as np
 import time
 
 import timeslice                    # to be created library
-import timeslice.source as source   # sub module in rnnpipe lib, define source raw data
-import timeslice.rule  as rule      # sub module in rnnpipe lib, define transformation rule
+# sub module in rnnpipe lib, define source raw data
+import timeslice.source as source
+# sub module in rnnpipe lib, define transformation rule
+import timeslice.rule as rule
 
 import timeslice.viz as viz         # visualize dataset if apply
 import torch
@@ -14,18 +16,21 @@ import torch
 def f(worker, worker_id):
     print(f'Worker {id} started!')
     worker.generate()
-    
+
 
 def double(ls):
     for i in range(len(ls)):
         ls[i] *= 2
     print(ls)
 
+
 if __name__ == '__main__':
 
     import timeslice                    # to be created library
-    import timeslice.source as source   # sub module in rnnpipe lib, define source raw data
-    import timeslice.rule  as rule      # sub module in rnnpipe lib, define transformation rule
+    # sub module in rnnpipe lib, define source raw data
+    import timeslice.source as source
+    # sub module in rnnpipe lib, define transformation rule
+    import timeslice.rule as rule
     import timeslice.worker as worker   # generate dataset
 
     import timeslice.viz as viz         # visualize dataset if apply
@@ -45,25 +50,36 @@ if __name__ == '__main__':
     taxi_csv_12 = source.CSVSource(file='dataset/nytaxi_yellow_2017_12.csv')
 
     # set time split rule to generate different dataset
-    time_rule_05 = rule.TimeSlice(stp='2017-05-01 00:00:00', etp='2017-06-01 00:00:00', freq='15min')
-    time_rule_06 = rule.TimeSlice(stp='2017-06-01 00:00:00', etp='2017-07-02 00:00:00', freq='15min')
-    time_rule_07 = rule.TimeSlice(stp='2017-07-01 00:00:00', etp='2017-08-01 00:00:00', freq='15min')
-    time_rule_08 = rule.TimeSlice(stp='2017-08-01 00:00:00', etp='2017-09-01 00:00:00', freq='15min')
-    time_rule_09 = rule.TimeSlice(stp='2017-09-01 00:00:00', etp='2017-10-01 00:00:00', freq='15min')
-    time_rule_10 = rule.TimeSlice(stp='2017-10-01 00:00:00', etp='2017-11-01 00:00:00', freq='15min')
-    time_rule_11 = rule.TimeSlice(stp='2017-11-01 00:00:00', etp='2017-12-01 00:00:00', freq='15min')
-    time_rule_12 = rule.TimeSlice(stp='2017-12-01 00:00:00', etp='2018-01-01 00:00:00', freq='15min')
+    time_rule_05 = rule.TimeSlice(
+        stp='2017-05-01 00:00:00', etp='2017-06-01 00:00:00', freq='15min')
+    time_rule_06 = rule.TimeSlice(
+        stp='2017-06-01 00:00:00', etp='2017-07-02 00:00:00', freq='15min')
+    time_rule_07 = rule.TimeSlice(
+        stp='2017-07-01 00:00:00', etp='2017-08-01 00:00:00', freq='15min')
+    time_rule_08 = rule.TimeSlice(
+        stp='2017-08-01 00:00:00', etp='2017-09-01 00:00:00', freq='15min')
+    time_rule_09 = rule.TimeSlice(
+        stp='2017-09-01 00:00:00', etp='2017-10-01 00:00:00', freq='15min')
+    time_rule_10 = rule.TimeSlice(
+        stp='2017-10-01 00:00:00', etp='2017-11-01 00:00:00', freq='15min')
+    time_rule_11 = rule.TimeSlice(
+        stp='2017-11-01 00:00:00', etp='2017-12-01 00:00:00', freq='15min')
+    time_rule_12 = rule.TimeSlice(
+        stp='2017-12-01 00:00:00', etp='2018-01-01 00:00:00', freq='15min')
 
     # instantiate data worker object
-    data_worker_05 = worker.Worker(source=taxi_csv_05, destin='yearly_continuous_test_mt', rule=time_rule_05, viz=True)
-    data_worker_06 = worker.Worker(source=taxi_csv_06, destin='yearly_continuous_test_mt', rule=time_rule_06, viz=True)
-    data_worker_07 = worker.Worker(source=taxi_csv_07, destin='yearly_continuous_test_mt', rule=time_rule_07, viz=True)
-    data_worker_08 = worker.Worker(source=taxi_csv_08, destin='yearly_continuous_test_mt', rule=time_rule_08, viz=True)
+    data_worker_05 = worker.Worker(
+        source=taxi_csv_05, destin='yearly_continuous_test_mt', rule=time_rule_05, viz=True)
+    data_worker_06 = worker.Worker(
+        source=taxi_csv_06, destin='yearly_continuous_test_mt', rule=time_rule_06, viz=True)
+    data_worker_07 = worker.Worker(
+        source=taxi_csv_07, destin='yearly_continuous_test_mt', rule=time_rule_07, viz=True)
+    data_worker_08 = worker.Worker(
+        source=taxi_csv_08, destin='yearly_continuous_test_mt', rule=time_rule_08, viz=True)
     # data_worker_09 = worker.Worker(source=taxi_csv_09, destin='yearly_continuous', rule=time_rule_09, viz=True)
     # data_worker_10 = worker.Worker(source=taxi_csv_10, destin='yearly_continuous', rule=time_rule_10, viz=True)
     # data_worker_11 = worker.Worker(source=taxi_csv_11, destin='yearly_continuous', rule=time_rule_11, viz=True)
     # data_worker_12 = worker.Worker(source=taxi_csv_12, destin='yearly_continuous', rule=time_rule_12, viz=True)
-  
 
     print(f'Using multiprocessing...')
     print(f'Started at {time.ctime()}')
