@@ -15,9 +15,10 @@ copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Generate future trafic states.
 A part of GSPNet project.
@@ -76,6 +77,8 @@ def sample(model, states, length, dest):
         states: the initial states, shaped (1, 69*69)
         length: number of to be generated future states
         dest: saving destination
+    Returns:
+        preds: generated future traffic state tensors
     '''
     seq_len = len(states)
     batch_size = seq_len
@@ -101,6 +104,11 @@ def sample(model, states, length, dest):
 def load(path: str, seq_len: int=None):
     '''
     Load seq_len adjacent tensors from a random place.
+    Args:
+        path: path to folder holding tensors
+        seq_len: sequence length of lstm
+    Returns:
+        states: tensor of initial states
     '''
     if not seq_len:
         pattern = re.compile('(?<=sl)\d+(?=-)')
@@ -144,13 +152,13 @@ def save_to(tensor: torch.Tensor, dest: str, id: int):
     tensor *= (255 // tensor.max())
     tensor = tensor.astype('uint8')
     image = Image.fromarray(tensor)
+    image.save(image_dest)
 
 
 def run():
     '''
     '''
     pass
-
 
 
 if __name__ == '__main__':

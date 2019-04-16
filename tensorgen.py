@@ -14,9 +14,10 @@ copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Module of dataset(raw) generation.
 A part of GSPNet project.
@@ -40,6 +41,8 @@ from multiprocessing import Pool, cpu_count
 def f(worker):
     '''
     Start a worker's generation.
+    Args:
+        worker: a process object
     '''
     print(f'Generating worker {worker.pid}..')
     worker.generate()
@@ -61,8 +64,9 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
             'test', ['10min', '15min'])
     '''
     DIRNAME = destdir
-
-    # taxi = source.DatabaseSource('cleaned_small_yellow_2017_full', ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
+    # Example:
+    # src => 'cleaned_small_yellow_2017_full'
+    # (stp, etp) => ('2017-01-01 00:00:00', '2017-02-01 00:00:00'))
     taxi = source.DatabaseSource(src, (stp, etp))
     taxi.load()
 
@@ -73,23 +77,25 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
     total_start = time.time()
     # seems that only interval between 10min and 15min are usable.
     for freq in freqs:
-        # multi processing generate data
+        # multiprocessing generate data
 
         workers = []
         for k in tables.keys():
 
-            wp = worker.Worker(k, tables[k], rule.TimeSlice(
-                *list(map(str, sub_ranges[k])), freq=freq),
-                 f'tensor_dataset/{DIRNAME}_{freq}', True)
+            wp = worker.Worker(k, tables[k],
+                               rule.TimeSlice(
+                               *list(map(str, sub_ranges[k])), freq=freq),
+                               f'tensor_dataset/{DIRNAME}_{freq}', True
+                               )
 
             workers.append(wp)
 
-        print(f'Start generating tensors with freq {freq} at {time.ctime()}\n')
+        print(f'Start generating tensors with freq {freq} at {time.ctime()}')
         start = time.time()
 
         # create a process pool
         pn = cpu_count()
-        print(f'Creating pool with {pn} processes.')
+        print(f'Creating process pool with {pn} processes.')
 
         with Pool(pn) as pool:
             pool.map(f, workers)
@@ -98,11 +104,11 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
             pool.join()
 
         end = time.time()
-        print(
-            f'Generation of tensors with freq {freq} finished at {time.ctime()} in {end-start :.2f} seconds.\n\n')
-    total_end = time.time()
+        print(f'Tensors with freq {freq} finished at {time.ctime()}\
+                in {end-start :.2f} seconds.\n\n')
 
-    print(f'Entire process of generating tensor datas ended in {total_end-total_start :.2f} seconds.')
+    total_end = time.time()
+    print(f'All generation ended in {total_end-total_start :.2f} seconds.')
 
 
 if __name__ == '__main__':

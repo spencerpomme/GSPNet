@@ -1,12 +1,12 @@
 '''
-Copyright (c) <2018> <Pingcheng Zhang>
+Copyright <2019> <COPYRIGHT Pingcheng Zhang>
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
@@ -19,8 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-
-Main module of GSPNet project.
+legacy functions of GSPNet project.
 '''
 
 import pandas as pd
@@ -45,7 +44,7 @@ yellow_zone = zones.loc[zones['Borough'] == 'Manhattan']
 
 # very important globals:
 img_size = yellow_zone.shape[0]
-real_id = list(map(str, list(yellow_zone.loc[:,'LocationID'])))
+real_id = list(map(str, list(yellow_zone.loc[:, 'LocationID'])))
 conv_id = [i for i in range(img_size)]
 mp = dict(zip(real_id, conv_id))
 
@@ -65,9 +64,9 @@ def gen_snap_layers(table, bound):
     assert type(bound) == tuple
     left = bound[0]
     right = bound[1]
-    
+
     print(left, right)
-    
+
     # no need to sort table indeed?
     projected_table = table.loc[:, ['tripid',
                                     'tpep_pickup_datetime',
@@ -90,18 +89,19 @@ def gen_snap_layers(table, bound):
     # Use the interval to 'catch' corresponding trips.
     # future layer
     f_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < right) &
-                             (temp_snap['tpep_pickup_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] >= right)]
+                            (temp_snap['tpep_pickup_datetime'] >= left) &
+                            (temp_snap['tpep_dropoff_datetime'] >= right)]
     # past layer
     p_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] < left) &
-                             (temp_snap['tpep_dropoff_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] < right)]
+                            (temp_snap['tpep_dropoff_datetime'] >= left) &
+                            (temp_snap['tpep_dropoff_datetime'] < right)]
     # now layer
     n_layer = temp_snap.loc[(temp_snap['tpep_pickup_datetime'] >= left) &
-                             (temp_snap['tpep_dropoff_datetime'] < right)]
+                            (temp_snap['tpep_dropoff_datetime'] < right)]
 
     # Their count should add up to total trips caught
-    assert temp_snap.shape[0] == f_layer.shape[0] + p_layer.shape[0] + n_layer.shape[0]
+    assert temp_snap.shape[0] == f_layer.shape[0] + \
+        p_layer.shape[0] + n_layer.shape[0]
 
     return p_layer, n_layer, f_layer
 
@@ -125,7 +125,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # future-Red: 0
     for _, row in f_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1
+            snapshot[mp[str(row['pulocationid'])],
+                     mp[str(row['dolocationid'])], 0] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -133,7 +134,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # past-Green: 1
     for _, row in p_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 1] += 1
+            snapshot[mp[str(row['pulocationid'])],
+                     mp[str(row['dolocationid'])], 1] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -141,7 +143,8 @@ def gen_image(p_layer, n_layer, f_layer):
     # now-Blue: 2
     for _, row in n_layer.iterrows():
         try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 2] += 1
+            snapshot[mp[str(row['pulocationid'])],
+                     mp[str(row['dolocationid'])], 2] += 1
         except Exception as e:
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
@@ -152,63 +155,65 @@ def gen_image(p_layer, n_layer, f_layer):
     image = Image.fromarray(snapshot)
     return image
 
-
     def gen_tensor(p_layer, n_layer, f_layer):
-    '''
-    Generate a tensor using given matrices.
-    Params:
-        p_layer: matrix of past layer
-        n_layer: matrix of now layer
-        f_layer: matrix of future layer
-    Return:
-        A torch tensor.
-    '''
-    # create a snapshot
-    snapshot = np.zeros([img_size, img_size, 3], dtype='float64')
+        '''
+        Generate a tensor using given matrices.
+        Params:
+            p_layer: matrix of past layer
+            n_layer: matrix of now layer
+            f_layer: matrix of future layer
+        Return:
+            A torch tensor.
+        '''
+        # create a snapshot
+        snapshot = np.zeros([img_size, img_size, 3], dtype='float64')
 
-    # unexpected zones
-    left_zones = set()
+        # unexpected zones
+        left_zones = set()
 
-    # future-Red: 0
-    for _, row in f_layer.iterrows():
-        try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 0] += 1
-        except Exception as e:
-            left_zones.add(str(row['pulocationid']))
-            left_zones.add(str(row['dolocationid']))
+        # future-Red: 0
+        for _, row in f_layer.iterrows():
+            try:
+                snapshot[mp[str(row['pulocationid'])],
+                        mp[str(row['dolocationid'])], 0] += 1
+            except Exception as e:
+                left_zones.add(str(row['pulocationid']))
+                left_zones.add(str(row['dolocationid']))
 
-    # past-Green: 1
-    for _, row in p_layer.iterrows():
-        try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 1] += 1
-        except Exception as e:
-            left_zones.add(str(row['pulocationid']))
-            left_zones.add(str(row['dolocationid']))
+        # past-Green: 1
+        for _, row in p_layer.iterrows():
+            try:
+                snapshot[mp[str(row['pulocationid'])],
+                        mp[str(row['dolocationid'])], 1] += 1
+            except Exception as e:
+                left_zones.add(str(row['pulocationid']))
+                left_zones.add(str(row['dolocationid']))
 
-    # now-Blue: 2
-    for _, row in n_layer.iterrows():
-        try:
-            snapshot[mp[str(row['pulocationid'])], mp[str(row['dolocationid'])], 2] += 1
-        except Exception as e:
-            left_zones.add(str(row['pulocationid']))
-            left_zones.add(str(row['dolocationid']))
+        # now-Blue: 2
+        for _, row in n_layer.iterrows():
+            try:
+                snapshot[mp[str(row['pulocationid'])],
+                        mp[str(row['dolocationid'])], 2] += 1
+            except Exception as e:
+                left_zones.add(str(row['pulocationid']))
+                left_zones.add(str(row['dolocationid']))
 
-    # normalize
-    snapshot *= 255 // snapshot.max()
-    snapshot = torch.from_numpy(snapshot)
-    return snapshot
+        # normalize
+        snapshot *= 255 // snapshot.max()
+        snapshot = torch.from_numpy(snapshot)
+        return snapshot
 
 
 def timesplit(stp: str, etp: str, freq='10min'):
     '''
     Create a DatetimeIndx interval.
-    
+
     Params:
         stp: string, starting time point, first left bound
         etp: string, ending time point, last right bound
         freq: frequency, time interval unit of the splice operation
     The stp and etp must of pattern "yyyy-mm-dd hh:mm:ss", otherwise exception will be raised.
-    
+
     Return:
         A list of time intervals tuples,each item is a tuple of two
         interval(i.e., pandas.core.indexes.datetimes.DatetimeIndex object)
@@ -230,7 +235,7 @@ def timesplit(stp: str, etp: str, freq='10min'):
 
 
 # Function that gets a specific layer of snapshot.
-def get_channel(image, layer:str):
+def get_channel(image, layer: str):
     '''
     Get a layer of the snapshot.
     Params:
@@ -241,10 +246,10 @@ def get_channel(image, layer:str):
     '''
     assert layer in ['P', 'N', 'F']
     namedict = {'P': 'G', 'N': 'B', 'F': 'R'}
-    chandict = {'R':0, 'G':1, 'B':2}
+    chandict = {'R': 0, 'G': 1, 'B': 2}
     template = np.array(image)
     chan = np.zeros([*template.shape], dtype='uint8')
-    chan[:,:,chandict[namedict[layer]]] = image.getchannel(namedict[layer])
+    chan[:, :, chandict[namedict[layer]]] = image.getchannel(namedict[layer])
     chan = Image.fromarray(chan)
     return chan
 
@@ -288,15 +293,17 @@ def image_run():
     print(f'Preparing table data...')
     table = pd.read_csv('dataset/nytaxi_yellow_2017_mar.csv')
     print(f'table shape: {table.shape}')
-    table['tpep_pickup_datetime'] = pd.to_datetime(table['tpep_pickup_datetime'])
-    table['tpep_dropoff_datetime'] = pd.to_datetime(table['tpep_dropoff_datetime'])
+    table['tpep_pickup_datetime'] = pd.to_datetime(
+        table['tpep_pickup_datetime'])
+    table['tpep_dropoff_datetime'] = pd.to_datetime(
+        table['tpep_dropoff_datetime'])
     print('start generating...')
     for i, bound in enumerate(timelist):
         p_layer, n_layer, f_layer = gen_snap_layers(table, bound)
         tensor = gen_tensor(p_layer, n_layer, f_layer)
         torch.save(tensor, f'{data_path}\\nytaxi_yellow_2017_mar_d{i}.pt')
         image = gen_image(p_layer, n_layer, f_layer)
-        vimage = image.resize((690,690)) # multiply by factor of 100
+        vimage = image.resize((690, 690))  # multiply by factor of 100
         vimage.save(f'{visual_path}\\nytaxi_yellow_2017_mar_v{i}.jpg')
-    print(f'Image and tensor generation done in {time.time() - start :.2f} seconds.')
-
+    print(
+        f'Image and tensor generation done in {time.time() - start :.2f} seconds.')
