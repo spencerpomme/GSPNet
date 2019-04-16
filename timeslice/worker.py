@@ -14,9 +14,10 @@ copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
-WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 Dataset(raw) generation functions and classes.
 A part of GSPNet project.
@@ -45,17 +46,18 @@ colmap = {
 }
 
 # helper functions
-# Function gen_snap_layers is hard to optimize for the slicing part depends heavily on
-# timestamp based selection. This functionality would be rather cumbersome if to
-# be done in numpy.
+# Function gen_snap_layers is hard to optimize for the slicing part depends
+# heavily on timestamp based selection. This functionality would be rather
+# cumbersome if to be done in numpy.
 
 
 def gen_snap_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
-    Params:
+    Args:
         table: pandas tabular data
-        bounds: time bound tuple, for example: (left_timestring, right_timestring)
+        bounds: time bound tuple,
+                for example: (left_timestring, right_timestring)
     Return:
         PNF layers, a list.
     '''
@@ -64,7 +66,8 @@ def gen_snap_layers(table, bound):
     left = bound[0]
     right = bound[1]
 
-    # The .loc operation below is moved to be executed in CSVSource initialization.
+    # The .loc operation below is moved to be executed in CSVSource
+    # initialization.
     # table = table.loc[:, ['tripid',
     #                                 'tpep_pickup_datetime',
     #                                 'tpep_dropoff_datetime',
@@ -106,7 +109,7 @@ def gen_snap_layers(table, bound):
 def gen_image(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
-    Params:
+    Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
@@ -157,12 +160,11 @@ def gen_image(p_layer, n_layer, f_layer):
 def gen_tensor(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
-    Params:
+    Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
-
-    Return:
+    Returns:
         A torch tensor.
     '''
     # create a snapshot
@@ -199,8 +201,6 @@ def gen_tensor(p_layer, n_layer, f_layer):
             left_zones.add(str(row['pulocationid']))
             left_zones.add(str(row['dolocationid']))
 
-    # set all empty
-
     # normalize
     sm = snapshot.max()
     # print(sm)
@@ -217,12 +217,10 @@ def create_adjacency_matrix(arr, am, ly: int):
     Fill in values into the provided am(adjacency matrxi) with the connection info
     numpy array. Copy a list here for performance
     (dict is not supported even just plainly put within jit decorated function)
-
     Args:
         arr: OD information, 2d numpy array
         am: adjacency matrix, zero 2d numpy array
         ly: layer number of 3-layer tensor
-
     Returns:
         am: a filled adjacency matrix 2d numpy array
     '''
@@ -243,7 +241,8 @@ def create_adjacency_matrix(arr, am, ly: int):
     }
 
     for i in range(arr.shape[0]):
-        # this twisted roundabout is due to not supported feature for iterating 2d arrays:
+        # this twisted roundabout is due to not supported feature for
+        # iterating 2d arrays:
         am[mapping[arr[i, :][3]],
            mapping[arr[i, :][4]],
            ly] += 1
@@ -255,11 +254,11 @@ def create_adjacency_matrix(arr, am, ly: int):
 def gen_image_fast(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
-    Params:
+    Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
-    Return:
+    Returns:
         A PIL image.
     '''
     # convert pandas dataframe to numpy array, only get OD columns
@@ -292,12 +291,11 @@ def gen_image_fast(p_layer, n_layer, f_layer):
 def gen_tensor_fast(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
-    Params:
+    Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
         f_layer: matrix of future layer, pandas dataframe
-
-    Return:
+    Returns:
         A torch tensor.
     '''
     # convert pandas dataframe to numpy array, only get OD columns
@@ -318,10 +316,7 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
     # now-Blue: 2
     snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
 
-    # # normalize
-    # sm = snapshot.max()
-    # # print(sm)
-    # snapshot *= (255 // sm)
+    # conver to tensor
     snapshot = torch.from_numpy(snapshot)
 
     return snapshot
@@ -330,7 +325,6 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
 def create_dir(directory: str):
     '''
     Helper function to create directory
-
     Args:
         directory: a string describing the to be created dir
     '''
@@ -366,7 +360,6 @@ class Worker:
     def __init__(self, pid: int, table, rule, destin: str, viz: bool):
         '''
         Init method for Worker.
-
         Args:
             pid:    process id
             destin: String, indicating where to store the generated tensors and
@@ -378,7 +371,6 @@ class Worker:
             viz:    Boolean value, decide create visualization image of tonsors
                     or not
         '''
-
         self.pid = pid
         self.table = self.clean_rows(table)
         self.rule = rule
@@ -407,10 +399,8 @@ class Worker:
         '''
         Remove rows in the table(pandas dataframe) if either of its location ID
         is not in Worker.mp
-
         Args:
             table: pandas DataFrame
-
         Returns:
             table: pandas DataFrame
         '''
@@ -445,7 +435,6 @@ class Worker:
             table: pandas.DataFrame object, one sub table from the
                    source.table_pool dictionary.
             pid: a number indicating the generation process id
-
 
         ***************************| benchmark |*****************************
         | A full run of entire year data (yellow regions) was approximately |
