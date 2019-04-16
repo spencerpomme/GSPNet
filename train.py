@@ -89,6 +89,46 @@ class F2FDataset(data.Dataset):
         return X, y
 
 
+class F2FDatasetRAM(data.Dataset):
+    '''
+    Frame to frame dataset.
+    '''
+
+    def __init__(self, datadir, seq_len):
+        '''
+        Initialization
+        Args:
+            datadir: directory of serialized tensors
+            seq_len: timestep length of tensors
+        '''
+        self.paths = glob(datadir + '/*.pkl')
+        # only want full seq_len sized length numbers
+        self.seq_len = seq_len
+        self.length = len(self.paths) // seq_len * seq_len
+        self.idict = {}
+        for i in range(self.length):
+            self.idict[i] = self.paths[i]
+
+        self.input_ids = self.idict.keys()[:-1]
+        self.label_ids = self.idict.keys()[1:]
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return self.length - self.seq_len
+
+    def __getitem__(self, index):
+        '''
+        Generates one sample of data
+        '''
+        # Load data and get label
+        X = torch.load(self.idict[self.input_ids[index]])
+        y = torch.load(self.idict[self.label_ids[index]])
+
+        return X, y
+
+
 class S2FDataset(data.Dataset):
     '''
     Sequence of Frames to one frame dataset.
@@ -186,7 +226,8 @@ class S2FDatasetRAM(data.Dataset):
         '''
         X = self.tensors[index: index+self.seq_len]
         y = self.tensors[index+self.seq_len]
-
+        X = torch.from_numpy(X)
+        y = torch.from_numpy(y)
         return X, y
 
 
@@ -236,7 +277,6 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
         Initialization method.
         Args:
             datadir: directory containing `tensors` and `viz_images` folder
-
         Explaination:
             The n_classes is actually fixed. If the time unit of tensor
             generation is 15min, then there would be 96 classes. The reason
@@ -286,7 +326,6 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
 def save_model(filename: str, model):
     '''
     Save model to local file.
-
     Args:
         filename: file name string
         model: trained model
@@ -298,10 +337,8 @@ def save_model(filename: str, model):
 def load_model(filename: str):
     '''
     Load trained model.
-
     Args:
         filename: file name string
-
     Returns:
         loaded torch model
     '''
@@ -400,7 +437,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 # training function for sequential prediction
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
-               train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
+               train_loader, valid_loader, hyps, clip=5, stop_criterion=90,
                show_every_n_batches=1, multi_gpus=True):
     '''
     Train a LSTM model with the given hyperparameters.
@@ -445,13 +482,13 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
         else:
             hidden = model.init_hidden(batch_size)
 
-        # early stop mechanism:
-        if early_stop_count >= stop_criterion:
-            print(
-                f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
-            break
-
         for batch_i, (inputs, labels) in enumerate(train_loader, 1):
+
+            # early stop mechanism:
+            if early_stop_count >= stop_criterion:
+                print(
+                    f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
+                break
 
             # make sure you iterate over completely full batches, only
             n_batches = len(train_loader.dataset) // batch_size
@@ -537,7 +574,6 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                      show_every_n_batches=100):
     '''
     Train a CNN classifier with the given hyperparameters.
-
     Args:
         model:              The PyTorch Module that holds the neural network
         optimizer:          The PyTorch optimizer for the neural network
@@ -547,7 +583,6 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         valid_loader:       Validation data loader
         hyps:               A dict containing hyperparameters
         show_every_batches: Display loss every this number of time steps
-
     Returns:
         A trained model. The best model will also be saved locally.
     '''
@@ -679,8 +714,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     }
 
     # Initialize data loaders
-    train_dir = 'tensor_dataset/train_15min/tensors'
-    valid_dir = 'tensor_dataset/valid_15min/tensors'
+    train_dir = 'tensor_dataset/full_15min_train/tensors'
+    valid_dir = 'tensor_dataset/full_15min_valid/tensors'
 
     # LSTM data loader
     train_set = S2FDatasetRAM(train_dir, sequence_length)
@@ -740,7 +775,6 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
         lr: learning_rate
         bs: batch_size
         dp: drop_prob
-
     '''
     # Training parameters
     epochs = epochs
@@ -762,7 +796,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     }
 
     # Initialize data loaders
-    data_dir = 'tensor_dataset/2018_full_15min/tensors'
+    data_dir = 'tensor_dataset/full_15min/tensors'
 
     # LSTM data loader
     data_set = SnapshotClassificationDatasetRAM(data_dir)
@@ -798,7 +832,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 
     # optimizer and criterion(loss function)
     if TRAIN_ON_MULTI_GPUS:
-        optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
+        optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.CrossEntropyLoss()
@@ -825,5 +859,5 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 
 if __name__ == '__main__':
 
-    # run_lstm_training()
-    run_classifier_training(100, 2, 0.1, 0, lr=0.0001, bs=1024, dp=0.5)
+    run_lstm_training(20, sl=12, bs=256, lr=0.001, hd=512, nl=3, dp=0.5)
+    # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
