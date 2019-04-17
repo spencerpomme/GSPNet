@@ -41,6 +41,8 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
+from models import *
+
 # Environment global variable
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
@@ -84,10 +86,7 @@ def sample(model, states, size, dest):
     batch_size = seq_len
 
     if TRAIN_ON_MULTI_GPUS:
-        model = nn.DataParallel(model).cuda()
         hidden = model.module.init_hidden(batch_size)
-    elif torch.cuda.is_available():
-        model = model.cuda()
     # initialize hidden state
     hidden = model.init_hidden(batch_size)
 
@@ -101,7 +100,7 @@ def sample(model, states, size, dest):
     return preds
 
 
-def load(prime_dir: str, size: int, seq_len: int = None):
+def load(prime_dir: str, size: int, seq_len: int):
     '''
     Load seq_len adjacent tensors from a random place.
     Args:
@@ -112,23 +111,21 @@ def load(prime_dir: str, size: int, seq_len: int = None):
         states: tensor of initial states, a tensor of shape (seq_len, 69*69*3)
         truths: real future, a list of (69,69,3) numpy arrays
     '''
-    if not seq_len:
-        pattern = re.compile('(?<=sl)\d+(?=-)')
-        seq_len = int(pattern.findall(path)[0])
-
     # tensor paths
     paths = glob(prime_dir + '/*.pkl')
     primes = []
     truths = []
 
     # select a random place to start draw the prime
-    start = np.random.randint(0, len(primes)-seq_len)
+    start = np.random.randint(0, len(paths)-seq_len)
 
+    print(f'Prime states id: {start} -> {start+seq_len}')
     # load seq_len paths as the initial states, i.e. prime
     for sp in paths[start: start+seq_len]:
         prime_tensor = torch.load(sp).numpy()
         primes.append(prime_tensor)
 
+    print(f'Predicting states id: {start+seq_len} -> {start+seq_len+size}')
     # load actual truths states, for test prediction accuracy visually
     for fp in paths[start+seq_len: start+seq_len+size]:
         truths_tensor = torch.load(fp)
@@ -175,17 +172,25 @@ def run(model_path, data_path, dest_path, size):
         dest_path: destination to save prediction
         size: size of predicted future states
     '''
+    print('Start predicting future states...')
+    pattern = re.compile('(?<=sl)\d+(?=-)')
+    seq_len = int(pattern.findall(model_path)[0])
+
+    # load model
+    device = torch.device('cuda')
     model = torch.load(model_path)
-    states, truths = load(data_path, size)
+    model.to(device)
+    states, truths = load(data_path, size, seq_len)
     sample(model, states, size, dest_path)
     # save actual future
     for i, truth in enumerate(truths):
         save_to(truth, dest_path, True, i)
+    print('Prediction finished!')
 
 
 if __name__ == '__main__':
 
-    print('Start predicting future states...')
     model_path = 'trained_models/LSTM-sl25-bs512-lr0.001-nl2-dp0.5.pt'
     data_path = 'tensor_dataset/full_15min_valid/tensors'
     dest_path = 'future_states'
+    run(model_path, data_path, dest_path, 4)
