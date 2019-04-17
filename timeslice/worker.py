@@ -214,8 +214,8 @@ def gen_tensor(p_layer, n_layer, f_layer):
 @jit(parallel=True)
 def create_adjacency_matrix(arr, am, ly: int):
     '''
-    Fill in values into the provided am(adjacency matrxi) with the connection info
-    numpy array. Copy a list here for performance
+    Fill in values into the provided am(adjacency matrxi) with the connection
+    info numpy array. Copy a list here for performance
     (dict is not supported even just plainly put within jit decorated function)
     Args:
         arr: OD information, 2d numpy array
