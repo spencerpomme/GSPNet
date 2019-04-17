@@ -707,6 +707,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
 
     # wrap essential info into dictionary:
     hyps = {
+        'is': input_size,
+        'os': output_size,
         'sl': sequence_length,
         'bs': batch_size,
         'lr': learning_rate,
@@ -761,7 +763,7 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
 
     plt.savefig(
         'trained_models' +
-        f'/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+        f'/LSTM-is-{hyps["is"]}-os-{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
 
@@ -798,7 +800,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     }
 
     # Initialize data loaders
-    data_dir = 'tensor_dataset/full_15min/tensors'
+    data_dir = 'dataset/2018_15min/tensors'
 
     # LSTM data loader
     data_set = SnapshotClassificationDatasetRAM(data_dir)
@@ -815,11 +817,11 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     train_sampler = SubsetRandomSampler(train_idx)
     valid_sampler = SubsetRandomSampler(valid_idx)
 
-    train_loader = DataLoader(data_set, sampler=train_sampler, batch_size=batch_size,
-                              num_workers=0, drop_last=True)
+    train_loader = DataLoader(data_set, sampler=train_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
 
-    valid_loader = DataLoader(data_set, sampler=valid_sampler, batch_size=batch_size,
-                              num_workers=0, drop_last=True)
+    valid_loader = DataLoader(data_set, sampler=valid_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
     model = PeriodClassifier3(n_classes=nc)
