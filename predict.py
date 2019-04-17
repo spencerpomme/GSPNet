@@ -48,7 +48,7 @@ TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
 # TODO: finish this class
-def predict(model, states, hidden, dir):
+def predict(model, states, hidden):
     '''
     Generate future states using the trained neural network.
 
@@ -57,18 +57,20 @@ def predict(model, states, hidden, dir):
         states:  first N states to start predicting furture states,
                  each of them is of shape (1, 69*69)
         hidden:  hidden states
-        dir:     A diretory to save generated tensor
     Returns:
         The generated traffic states
     '''
     states = states.cuda()
 
-    gen_states = []
+    # reshape states to shape (batch_size, 1, flattened_dim)
+    # here, batch_size == seq_len of intial states
+    states = states.reshape(states.shape[0], 1, states.shape[1])
+    # detach hidden from history
     hidden = tuple([each.data for each in hidden])
 
     out, hidden = model(states, hidden)
 
-    return gen_states, hidden
+    return out, hidden
 
 
 def sample(model, states, size, dest):
@@ -94,7 +96,7 @@ def sample(model, states, size, dest):
     preds = []
     for i in range(size):
 
-        pred, hidden = predict(states, hidden)
+        pred, hidden = predict(model, states, hidden)
         preds.append(pred)
         save_to(pred, dest, False, i)  # false means it's not real future
     return preds
@@ -147,6 +149,7 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
         real: boolean value, indicating real future or predicted
         id: id of generated tensor/image
     '''
+    print(f'tensor.shape -> {tensor.shape}')
     tensor = tensor.reshape((69, 69, 3))
     image_dest = dest + '/viz_images' + f'{"r" if real else "p"}-{id}.png'
     tensor_dest = dest + '/tensors' + f'{"r" if real else "p"}-{id}.pkl'
@@ -161,6 +164,18 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
     tensor = tensor.astype('uint8')
     image = Image.fromarray(tensor)
     image.save(image_dest)
+
+
+def retrieve_hyps(path: str):
+    '''
+    Retrieve hyperparameters that needed for reconstructing saved models from
+    model name string.
+    Args:
+        path: path to serialize model state_dict file
+    Returns:
+        hyps: dictionary containing all necessary hyperparameters
+    '''
+    pass
 
 
 def run(model_path, data_path, dest_path, size):
@@ -178,7 +193,10 @@ def run(model_path, data_path, dest_path, size):
 
     # load model
     device = torch.device('cuda')
-    model = torch.load(model_path)
+    # the line below is temporal
+    model = VanillaStateRNN(69*69*3, 69*69*3, 512,
+                            n_layers=2, drop_prob=0.5)
+    model.load_state_dict(torch.load(model_path))
     model.to(device)
     states, truths = load(data_path, size, seq_len)
     sample(model, states, size, dest_path)
