@@ -551,6 +551,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 if avg_val_loss < valid_loss_min:
 
                     print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
+                    # saving state_dict of model
                     torch.save(model.state_dict(),
                                f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
                     valid_loss_min = avg_val_loss
