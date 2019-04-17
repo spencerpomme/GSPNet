@@ -69,13 +69,13 @@ def predict(model, states, hidden, dir):
     return gen_states, hidden
 
 
-def sample(model, states, length, dest):
+def sample(model, states, size, dest):
     '''
-    Generate a length of future traffic state tensors (snapshots).
+    Generate a size of future traffic state tensors (snapshots).
     Args:
         model: trained LSTM model, loaded from serialized file
         states: the initial states, shaped (1, 69*69)
-        length: number of to be generated future states
+        size: number of to be generated future states
         dest: saving destination
     Returns:
         preds: generated future traffic state tensors
@@ -93,55 +93,66 @@ def sample(model, states, length, dest):
 
     # start sampling
     preds = []
-    for i in range(length):
+    for i in range(size):
 
         pred, hidden = predict(states, hidden)
         preds.append(pred)
-        save_to(pred, dest)
+        save_to(pred, dest, False, i)  # false means it's not real future
     return preds
 
 
-def load(path: str, seq_len: int=None):
+def load(prime_dir: str, size: int, seq_len: int = None):
     '''
     Load seq_len adjacent tensors from a random place.
     Args:
-        path: path to folder holding tensors
+        prime_dir: path to folder holding tensors
+        size: number of predictions to be generated
         seq_len: sequence length of lstm
     Returns:
-        states: tensor of initial states
+        states: tensor of initial states, a tensor of shape (seq_len, 69*69*3)
+        truths: real future, a list of (69,69,3) numpy arrays
     '''
     if not seq_len:
         pattern = re.compile('(?<=sl)\d+(?=-)')
         seq_len = int(pattern.findall(path)[0])
 
-    # load model
-    model = torch.load(path)
     # tensor paths
     paths = glob(prime_dir + '/*.pkl')
     primes = []
+    truths = []
+
+    # select a random place to start draw the prime
+    start = np.random.randint(0, len(primes)-seq_len)
 
     # load seq_len paths as the initial states, i.e. prime
-    for p in paths[:seq_len]:
-        tensor = torch.load(p).numpy()
-        primes.append(tensor)
+    for sp in paths[start: start+seq_len]:
+        prime_tensor = torch.load(sp).numpy()
+        primes.append(prime_tensor)
+
+    # load actual truths states, for test prediction accuracy visually
+    for fp in paths[start+seq_len: start+seq_len+size]:
+        truths_tensor = torch.load(fp)
+        truths.append(truths_tensor)
+
     primes = np.array(primes).astype('float32')
     primes = primes.reshape((seq_len, -1))
     states = torch.from_numpy(primes)
 
-    return states
+    return states, truths
 
 
-def save_to(tensor: torch.Tensor, dest: str, id: int):
+def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
     '''
     Save a tensor and its visualization image to specified destination.
     Args:
         tensor: predicted traffic state tensor, of shape (1, 69*69)
         dest: destination path of saving
+        real: boolean value, indicating real future or predicted
         id: id of generated tensor/image
     '''
     tensor = tensor.reshape((69, 69, 3))
-    image_dest = dest + '/viz_images' + f'{id}.png'
-    tensor_dest = dest + '/tensors' + f'{id}.pkl'
+    image_dest = dest + '/viz_images' + f'{"r" if real else "p"}-{id}.png'
+    tensor_dest = dest + '/tensors' + f'{"r" if real else "p"}-{id}.pkl'
 
     # save tensor
     torch.save(tensor, image_dest)
@@ -155,11 +166,26 @@ def save_to(tensor: torch.Tensor, dest: str, id: int):
     image.save(image_dest)
 
 
-def run():
+def run(model_path, data_path, dest_path, size):
     '''
+    Main function of predict module.
+    Args:
+        model_path: path to the trained model
+        data_path: path to where init states at
+        dest_path: destination to save prediction
+        size: size of predicted future states
     '''
-    pass
+    model = torch.load(model_path)
+    states, truths = load(data_path, size)
+    sample(model, states, size, dest_path)
+    # save actual future
+    for i, truth in enumerate(truths):
+        save_to(truth, dest_path, True, i)
 
 
 if __name__ == '__main__':
-    print('main')
+
+    print('Start predicting future states...')
+    model_path = 'trained_models/LSTM-sl25-bs512-lr0.001-nl2-dp0.5.pt'
+    data_path = 'tensor_dataset/full_15min_valid/tensors'
+    dest_path = 'future_states'
