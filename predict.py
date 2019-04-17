@@ -222,6 +222,7 @@ def run(model_path, data_path, dest_path, size):
     # the line below is temporal
     model = VanillaStateRNN(69*69*3, 69*69*3, 512,
                             n_layers=2, drop_prob=0.5)
+
     model.load_state_dict(torch.load(model_path))
     model.to(device)
     states, truths = load(data_path, size, seq_len)
@@ -235,6 +236,6 @@ def run(model_path, data_path, dest_path, size):
 if __name__ == '__main__':
 
     model_path = 'trained_models/LSTM-sl25-bs512-lr0.001-nl2-dp0.5.pt'
-    data_path = 'tensor_dataset/full_15min_valid/tensors'
+    data_path = 'dataset/2018/15min/tensors'
     dest_path = 'future_states'
-    run(model_path, data_path, dest_path, 4)
+    run(model_path, data_path, dest_path, 14)
