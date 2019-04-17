@@ -33,6 +33,7 @@ import re
 import time
 import torch
 
+from PIL import Image
 from torch import nn, optim
 from torch.utils import data
 from torch.utils.data import TensorDataset, DataLoader
@@ -55,22 +56,19 @@ def predict(model, states, hidden):
     Args:
         model:   PyTorch Module that holds the trained neural network
         states:  first N states to start predicting furture states,
-                 each of them is of shape (1, 69*69)
+                 each of them is of shape (1, 69*69), CUDA tensor.
         hidden:  hidden states
     Returns:
         The generated traffic states
     '''
-    states = states.cuda()
-
     # reshape states to shape (batch_size, 1, flattened_dim)
     # here, batch_size == seq_len of intial states
     states = states.reshape(states.shape[0], 1, states.shape[1])
     # detach hidden from history
     hidden = tuple([each.data for each in hidden])
-
     out, hidden = model(states, hidden)
-
-    return out, hidden
+    # only want the last output
+    return out[-1], hidden
 
 
 def sample(model, states, size, dest):
@@ -84,6 +82,9 @@ def sample(model, states, size, dest):
     Returns:
         preds: generated future traffic state tensors
     '''
+    # move tensor to GPU
+    states = states.cuda()
+
     seq_len = len(states)
     batch_size = seq_len
 
@@ -99,6 +100,8 @@ def sample(model, states, size, dest):
         pred, hidden = predict(model, states, hidden)
         preds.append(pred)
         save_to(pred, dest, False, i)  # false means it's not real future
+        pred = pred.reshape((1, -1))   # reshape
+        states = torch.cat((states[1:], pred))
     return preds
 
 
@@ -122,12 +125,14 @@ def load(prime_dir: str, size: int, seq_len: int):
     start = np.random.randint(0, len(paths)-seq_len)
 
     print(f'Prime states id: {start} -> {start+seq_len}')
+
     # load seq_len paths as the initial states, i.e. prime
     for sp in paths[start: start+seq_len]:
         prime_tensor = torch.load(sp).numpy()
         primes.append(prime_tensor)
 
     print(f'Predicting states id: {start+seq_len} -> {start+seq_len+size}')
+
     # load actual truths states, for test prediction accuracy visually
     for fp in paths[start+seq_len: start+seq_len+size]:
         truths_tensor = torch.load(fp)
@@ -149,20 +154,41 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
         real: boolean value, indicating real future or predicted
         id: id of generated tensor/image
     '''
-    print(f'tensor.shape -> {tensor.shape}')
-    tensor = tensor.reshape((69, 69, 3))
-    image_dest = dest + '/viz_images' + f'{"r" if real else "p"}-{id}.png'
-    tensor_dest = dest + '/tensors' + f'{"r" if real else "p"}-{id}.pkl'
+    def create_dir(directory: str):
+        '''
+        Helper function to create directory
+        Args:
+            directory: a string describing the to be created dir
+        '''
+        try:
+            if not os.path.exists(directory):
+                os.makedirs(directory)
 
+        except OSError:
+            print('Error: Creating directory. ' + directory)
+            raise OSError
+
+    # print(f'tensor.shape -> {tensor.shape}')
+    tensor = tensor.reshape((69, 69, 3))
+    image_dest = dest + '/viz_images'
+    tensor_dest = dest + '/tensors'
+
+    # ensure the directories exist
+    create_dir(image_dest)
+    create_dir(tensor_dest)
+    image_dest += f'/{"r" if real else "p"}-{id}.png'
+    tensor_dest += f'/{"r" if real else "p"}-{id}.pkl'
     # save tensor
     torch.save(tensor, image_dest)
     # tensor to image
     tensor = tensor.cpu()
+    tensor = tensor.detach().numpy()
 
     # simple normalize
     tensor *= (255 // tensor.max())
     tensor = tensor.astype('uint8')
     image = Image.fromarray(tensor)
+    image = image.resize((345, 345))
     image.save(image_dest)
 
 
