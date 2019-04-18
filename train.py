@@ -774,7 +774,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     Args:
         epochs: number of epochs to train
         nc: n classes
-        vs: valida size, proportion of validation data set
+        vs: validation size, proportion of validation data set
         rs: random seed
         lr: learning_rate
         bs: batch_size
@@ -859,6 +859,20 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
         f'/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
+
+
+def create_loader(dataset, vs, rs):
+    '''
+    Create training dataset loader and validation dataset loader.
+    Args:
+        dataset: 
+        vs: validation size, a proportion
+        rs: random seed
+    Returns:
+        train_loader:
+        valid_loader:
+    '''
+    pass
 
 
 if __name__ == '__main__':
