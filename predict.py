@@ -42,13 +42,13 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
+import models
 from models import *
 
 # Environment global variable
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
-# TODO: finish this class
 def predict(model, states, hidden):
     '''
     Generate future states using the trained neural network.
@@ -197,15 +197,63 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
 
 def retrieve_hyps(path: str):
     '''
-    Retrieve hyperparameters that needed for reconstructing saved models from
-    model name string.
+    Retrieve hyperparameters that needed for reconstructing saved LSTM models
+    from model name string.
 
     Args:
         path: path to serialize model state_dict file
     Returns:
-        hyps: dictionary containing all necessary hyperparameters
+        info: dictionary containing all necessary information
     '''
-    pass
+    path = path.split('/')[1]
+
+    # hyperparameter extraction patterns
+    model_name_pt = re.compile('(^\s(?=-)')
+    input_size_pt = re.compile('(?<=is)\d*')
+    output_size_pt = re.compile('(?<=os)\d*')
+    seq_len_pt = re.compile('(?<=sl)\d*')
+    batch_size_pt = re.compile('(?<=bs)\d*')
+    n_layers_pt = re.compile('(?<=nl)\d')
+    hidden_size_pt = re.compile('(?<=hd)\d')
+    lr_pt = re.compile('(?<=lr)0.\d*')
+    drop_prob_pt = re.compile('(?<=dp)0.\d*')
+
+    # create dictionary for information to reconstruct model
+    hyps = {
+        'nm': model_name_pt.findall(path)[0],
+        'is': int(input_size_pt.findall(path)[0]),
+        'os': int(output_size_pt.findall(path)[0]),
+        'sl': int(seq_len_pt.findall(path)[0]),
+        'bs': int(batch_size_pt.findall(path)[0]),
+        'nl': int(n_layers_pt.findall(path)[0]),
+        'hd': int(hidden_size_pt.findall(path)[0])
+        'lr': float(lr_pt.findall(path)[0]),
+        'dp': float(drop_prob_pt.findall(path)[0])
+    }
+
+    return hyps
+
+
+def reconstruct(hyps: dict):
+    '''
+    Reconstruct the trained model from serialized .pt file.
+
+    Args:
+        hyps: a dictionary containing necessary information to reconstruct
+              LSTM model
+    Returns:
+        model: a reconstructed LSTM model
+    '''
+    model = models.__dict__[hyps['nm']](
+        hyps['is'],
+        hyps['os'],
+        hidden_dim=hyps['hd'],
+        n_layers=hyps['nl'],
+        drop_prob=hyps['dp'],
+        train_on_gpu=True
+    )
+
+    return model
 
 
 def run(model_path, data_path, dest_path, size):
@@ -219,14 +267,12 @@ def run(model_path, data_path, dest_path, size):
         size: size of predicted future states
     '''
     print('Start predicting future states...')
-    pattern = re.compile('(?<=sl)\d+(?=-)')
-    seq_len = int(pattern.findall(model_path)[0])
-
+    # extract model information from model_path string
+    hyps = retrieve_hyps(model_path)
     # load model
     device = torch.device('cuda')
-    # the line below is temporal
-    model = VanillaStateRNN(69*69*3, 69*69*3, 512,
-                            n_layers=2, drop_prob=0.5)
+    # recontruct model
+    model = reconstruct(hyps)
 
     model.load_state_dict(torch.load(model_path))
     model.to(device)
@@ -240,7 +286,7 @@ def run(model_path, data_path, dest_path, size):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/LSTM-sl25-bs512-lr0.001-nl2-dp0.5.pt'
-    data_path = 'dataset/2018/15min/tensors'
+    model_path = 'trained_models/LSTM-is14283-os14283-sl12-bs256-lr0.001-nl3-dp0.5.pt'
+    data_path = 'dataset/2018_15min/tensors'
     dest_path = 'future_states'
     run(model_path, data_path, dest_path, 14)
