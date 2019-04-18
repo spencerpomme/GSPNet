@@ -41,7 +41,7 @@ from glob import glob, iglob
 
 # models
 # RNN models to do sequential prediction:
-class VanillaStateRNN(nn.Module):
+class VanillaStateLSTM(nn.Module):
     '''
     The baseline model.
 
@@ -82,6 +82,7 @@ class VanillaStateRNN(nn.Module):
         '''
         Forward pass through the network.
         These inputs are x, and the hidden/cell state `hidden`.
+
         Args:
             x:      input state vector (flattened)
             hidden: hidden state of t-1
@@ -117,6 +118,7 @@ class VanillaStateRNN(nn.Module):
     def init_hidden(self, batch_size):
         '''
         Initializes hidden state.
+
         Args:
             batch_size: divide the traffic state sequence into batch_size equally long
                         sub-sequences, for parallelization.
@@ -149,6 +151,7 @@ class EmbedStateRNN(nn.Module):
                  drop_prob=0.5, train_on_gpu=True):
         '''
         LSTM model initialization.
+
         Args:
             input_size:     dimention of state vector (flattened 3d tensor)
             output_size:    the same shape of input_size, a 3d tensor
@@ -181,7 +184,8 @@ class EmbedStateRNN(nn.Module):
     def forward(self, x, hidden):
         '''
         Forward pass through the network.
-        These inputs are x, and the hidden/cell state `hidden`
+        These inputs are x, and the hidden/cell state `hidden`.
+
         Args:
             x:      input state vector (flattened)
             hidden: hidden state of t-1
@@ -246,7 +250,8 @@ class PeriodClassifier1(nn.Module):
     '''
     def __init__(self, n_classes):
         '''
-        Initialization
+        Initialization.
+
         Args:
             n_classes: number of classes
         '''
@@ -275,7 +280,8 @@ class PeriodClassifier1(nn.Module):
 
     def forward(self, x):
         '''
-        Forward behavior of the network
+        Forward behavior of the network.
+
         Args:
             x: input tensor
         Returns:
@@ -307,7 +313,8 @@ class PeriodClassifier2(nn.Module):
 
     def __init__(self, n_classes):
         '''
-        Initialization
+        Initialization.
+
         Args:
             n_classes: number of classes
         '''
@@ -329,7 +336,8 @@ class PeriodClassifier2(nn.Module):
 
     def forward(self, x):
         '''
-        Forward behavior of the network
+        Forward behavior of the network.
+
         Args:
             x: input tensor
         Returns:
@@ -357,7 +365,8 @@ class PeriodClassifier3(nn.Module):
 
     def __init__(self, n_classes):
         '''
-        Initialization
+        Initialization.
+
         Args:
             n_classes: number of classes
         '''
@@ -374,7 +383,8 @@ class PeriodClassifier3(nn.Module):
 
     def forward(self, x):
         '''
-        Forward behavior of the network
+        Forward behavior of the network.
+
         Args:
             x: input tensor
         Returns:
@@ -394,6 +404,7 @@ class PeriodClassifier3(nn.Module):
 def decide_label(file: str):
     '''
     This function hard codes classification criteria to label the tensors.
+
     Args:
         file: a file name string
         nc: number of classes
