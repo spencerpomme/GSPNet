@@ -57,7 +57,8 @@ class F2FDataset(data.Dataset):
 
     def __init__(self, datadir, seq_len):
         '''
-        Initialization
+        Initialization.
+
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
@@ -97,7 +98,8 @@ class F2FDatasetRAM(data.Dataset):
 
     def __init__(self, datadir, seq_len):
         '''
-        Initialization
+        Initialization.
+
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
@@ -113,6 +115,18 @@ class F2FDatasetRAM(data.Dataset):
         self.input_ids = self.idict.keys()[:-1]
         self.label_ids = self.idict.keys()[1:]
 
+        # load all tensor into RAM
+        tensors = []
+        for path in tqdm(self.paths, total=self.length, ascii=True):
+            tensor = torch.load(path).numpy()
+            tensors.append(tensor)
+        # pad one at the end of the sequence with first state
+        pad_tensor = torch.load(self.paths[0]).numpy()
+        tensors.append(pad_tensor)
+
+        tensors = np.array(tensors).astype('float32')
+        self.tensors = tensors.reshape((self.length, -1))
+
     def __len__(self):
         '''
         Denotes the total number of samples
@@ -124,9 +138,10 @@ class F2FDatasetRAM(data.Dataset):
         Generates one sample of data
         '''
         # Load data and get label
-        X = torch.load(self.idict[self.input_ids[index]])
-        y = torch.load(self.idict[self.label_ids[index]])
-
+        X = self.tensors[index]
+        y = self.tensors[index+1]
+        X = torch.from_numpy(X)
+        y = torch.from_numpy(y)
         return X, y
 
 
@@ -137,7 +152,8 @@ class S2FDataset(data.Dataset):
 
     def __init__(self, datadir, seq_len):
         '''
-        Initialization
+        Initialization.
+
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
@@ -156,13 +172,13 @@ class S2FDataset(data.Dataset):
 
     def __len__(self):
         '''
-        Denotes the total number of samples
+        Denotes the total number of samples.
         '''
         return self.length - self.seq_len
 
     def __getitem__(self, index):
         '''
-        Generates one sample of data
+        Generates one sample of data.
         '''
         # Load data and get label
         X = []
@@ -191,7 +207,8 @@ class S2FDatasetRAM(data.Dataset):
 
     def __init__(self, datadir, seq_len):
         '''
-        Initialization
+        Initialization.
+
         Args:
             datadir: directory of serialized tensors
             seq_len: timestep length of tensors
@@ -217,18 +234,19 @@ class S2FDatasetRAM(data.Dataset):
 
     def __len__(self):
         '''
-        Denotes the total number of samples
+        Denotes the total number of samples.
         '''
         return self.length - self.seq_len
 
     def __getitem__(self, index):
         '''
-        Generates one sample of data
+        Generates one sample of data.
         '''
         X = self.tensors[index: index+self.seq_len]
         y = self.tensors[index+self.seq_len]
         X = torch.from_numpy(X)
         y = torch.from_numpy(y)
+
         return X, y
 
 
@@ -242,6 +260,7 @@ class SnapshotClassificationDataset(data.Dataset):
     def __init__(self, datadir: str):
         '''
         Initialization method.
+
         Args:
             datadir: directory containing `tensors` and `viz_images` folder
         '''
@@ -251,13 +270,13 @@ class SnapshotClassificationDataset(data.Dataset):
 
     def __len__(self):
         '''
-        Denotes the total number of samples
+        Denotes the total number of samples.
         '''
         return len(self.paths)
 
     def __getitem__(self, index):
         '''
-         Generates one sample of data
+         Generates one sample of data.
          Decide class of the sample on the fly.
         '''
         path = self.paths[index]
@@ -276,6 +295,7 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
     def __init__(self, datadir: str):
         '''
         Initialization method.
+
         Args:
             datadir: directory containing `tensors` and `viz_images` folder
         Explaination:
@@ -309,13 +329,13 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
 
     def __len__(self):
         '''
-        Denotes the total number of samples
+        Denotes the total number of samples.
         '''
         return len(self.paths)
 
     def __getitem__(self, index):
         '''
-         Generates one sample of data
+         Generates one sample of data.
         '''
         X = self.Xs[index]
         y = self.ys[index]
@@ -327,6 +347,7 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
 def save_model(filename: str, model):
     '''
     Save model to local file.
+
     Args:
         filename: file name string
         model: trained model
@@ -338,6 +359,7 @@ def save_model(filename: str, model):
 def load_model(filename: str):
     '''
     Load trained model.
+
     Args:
         filename: file name string
     Returns:
@@ -350,14 +372,15 @@ def load_model(filename: str):
 # data feeder, type 2, deprecated
 def batch_dataset(datadir, seq_len):
     '''
-    Batch the neural network data using DataLoader
+    Batch the neural network data using DataLoader.
+
     Args:
         datadir: Directory storing tensor data
         seq_len: The sequence length of each batch
     Return:
         DataLoader with batched data
     '''
-    # TODO: merger below commented lines into this function.
+    # WARNING: this function is deprecated, will remove after 2019 May 1st
     data_iter = iglob(datadir + '/*')
 
     states = []
@@ -425,7 +448,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     loss = criterion(output, target)
     loss.backward()
 
-    # 'clip_grad_norm' helps prevent the exploding gradient problem in RNNs / LSTMs
+    # 'clip_grad_norm' helps prevent the exploding gradient problem in RNNs
     if TRAIN_ON_MULTI_GPUS:
         nn.utils.clip_grad_norm_(model.module.parameters(), clip)
     else:
@@ -438,7 +461,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 # training function for sequential prediction
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
-               train_loader, valid_loader, hyps, clip=5, stop_criterion=90,
+               train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
                show_every_n_batches=1, multi_gpus=True):
     '''
     Train a LSTM model with the given hyperparameters.
@@ -487,8 +510,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
             # early stop mechanism:
             if early_stop_count >= stop_criterion:
-                print(
-                    f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
+                print(f'Early stop triggered after {stop_criterion} epochs.')
                 break
 
             # make sure you iterate over completely full batches, only
@@ -544,7 +566,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} \
+                     | Loss: {avg_tra_loss:.4f} \
+                     | Val Loss: {avg_val_loss:.4f} \
+                     | Min Val: {valid_loss_min:.4f}',
                     flush=True)
 
                 # decide whether to save model or not:
@@ -553,7 +578,12 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                     print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
                     # saving state_dict of model
                     torch.save(model.state_dict(),
-                               f'trained_models/LSTM-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt')
+                               f'trained_models/\
+                                 LSTM-is{hyps["is"]}-os{hyps["os"]}\
+                                     -sl{hyps["sl"]}-bs{hyps["bs"]}\
+                                     -lr{hyps["lr"]}-nl{hyps["nl"]}\
+                                     -dp{hyps["dp"]}.pt')
+
                     valid_loss_min = avg_val_loss
                     early_stop_count = 0
 
@@ -576,6 +606,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                      show_every_n_batches=100):
     '''
     Train a CNN classifier with the given hyperparameters.
+
     Args:
         model:              The PyTorch Module that holds the neural network
         optimizer:          The PyTorch optimizer for the neural network
@@ -611,8 +642,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 
         # early stop mechanism:
         if early_stop_count >= stop_criterion:
-            print(
-                f'Validation loss stops decresing for {stop_criterion} epochs, early stop triggered.')
+            print(f'Early stop triggered after {stop_criterion} epochs.')
             break
 
         for data, label in train_loader:
@@ -647,15 +677,22 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         vl.append(avg_val_loss)
         # printing loss stats
         print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss {avg_val_loss:.4f} | Min Val {valid_loss_min:.4f}',
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} \
+             | Loss: {avg_tra_loss:.4f} \
+             | Val Loss: {avg_val_loss:.4f} \
+             | Min Val: {valid_loss_min:.4f}',
             flush=True)
 
         # decide whether to save model or not:
         if avg_val_loss < valid_loss_min:
 
-            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
+            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. \
+                    Saving...', flush=True)
+
             torch.save(model.state_dict(),
-                        f'trained_models/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
+                       f'trained_models/Classifier-bs{hyps["bs"]}\
+                                                  -lr{hyps["lr"]}-nc{hyps["nc"]}\
+                                                  -dp{hyps["dp"]}.pt')
 
             valid_loss_min = avg_val_loss
             early_stop_count = 0
@@ -677,6 +714,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     '''
     Main function of lstm training.
+
     Args:
         epochs: number of epochs to train
         sl: sequence_length,
@@ -718,8 +756,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     }
 
     # Initialize data loaders
-    train_dir = 'tensor_dataset/full_15min_train/tensors'
-    valid_dir = 'tensor_dataset/full_15min_valid/tensors'
+    train_dir = 'dataset/2018_15min/tensors'
+    valid_dir = 'dataset/2018_15min/tensors'
 
     # LSTM data loader
     train_set = S2FDatasetRAM(train_dir, sequence_length)
@@ -731,8 +769,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
                               num_workers=0, drop_last=True)
 
     # initialize model
-    model = VanillaStateRNN(input_size, output_size, hidden_dim,
-                            n_layers=n_layers, drop_prob=drop_prob)
+    model = VanillaStateLSTM(input_size, output_size, hidden_dim,
+                             n_layers=n_layers, drop_prob=drop_prob)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -763,7 +801,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
 
     plt.savefig(
         'trained_models' +
-        f'/LSTM-is-{hyps["is"]}-os-{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+        f'/LSTM-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}\
+               -lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
 
@@ -771,6 +810,7 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
 def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     '''
     Main function of cnn classifier training.
+
     Args:
         epochs: number of epochs to train
         nc: n classes
@@ -861,16 +901,19 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     plt.show()
 
 
-def create_loader(dataset, vs, rs):
+def create_loader(dataset, vs: float, rs: int, sampler: str):
     '''
     Create training dataset loader and validation dataset loader.
+    Sampler selection supported.
+
     Args:
-        dataset: 
+        dataset: a pytorch dataset object
         vs: validation size, a proportion
         rs: random seed
+        sampler: sampler type in string
     Returns:
-        train_loader:
-        valid_loader:
+        train_loader: training dataset loader
+        valid_loader: validation dataset loader
     '''
     pass
 
