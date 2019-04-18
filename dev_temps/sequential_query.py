@@ -6,7 +6,8 @@ import psycopg2
 import time
 from tqdm import tqdm
 
-def _construct_sql(stp:str, etp:str):
+
+def _construct_sql(stp: str, etp: str):
         '''
         A private helper function to construct sql query, called another
         helper function _construct_split.
@@ -25,9 +26,9 @@ def _construct_sql(stp:str, etp:str):
 
         return (f"select tripid,tpep_pickup_datetime,tpep_dropoff_datetime,pulocationid,dolocationid from cleaned_small_yellow_2017_full "
                 f"where tpep_pickup_datetime >= '{stp}' and tpep_dropoff_datetime < '{etp}';")
-    
 
-def safe_weekly_divide(stp:str, etp:str):
+
+def safe_weekly_divide(stp: str, etp: str):
     '''
     Return a safely rounded split of timeslices decided by "1D".
 
@@ -37,7 +38,7 @@ def safe_weekly_divide(stp:str, etp:str):
 
     Returns:
         subs: a list of (Timestamp, Timestamp) pairs
-    '''    
+    '''
     bounds = pd.date_range(stp, etp, freq='1W-MON')
     print(bounds[0], bounds[-1])
     head_round = tail_round = None
@@ -47,7 +48,7 @@ def safe_weekly_divide(stp:str, etp:str):
         tail_round = (pd.Timestamp(bounds[-1]), pd.Timestamp(etp))
     print('\n\n\n')
     subs = [head_round] + list(zip(bounds[:-1], bounds[1:])) + [tail_round]
-    
+
     return subs
 
 
