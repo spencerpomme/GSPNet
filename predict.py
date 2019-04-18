@@ -74,6 +74,7 @@ def predict(model, states, hidden):
 def sample(model, states, size, dest):
     '''
     Generate a size of future traffic state tensors (snapshots).
+
     Args:
         model: trained LSTM model, loaded from serialized file
         states: the initial states, shaped (1, 69*69)
@@ -108,6 +109,7 @@ def sample(model, states, size, dest):
 def load(prime_dir: str, size: int, seq_len: int):
     '''
     Load seq_len adjacent tensors from a random place.
+
     Args:
         prime_dir: path to folder holding tensors
         size: number of predictions to be generated
@@ -148,6 +150,7 @@ def load(prime_dir: str, size: int, seq_len: int):
 def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
     '''
     Save a tensor and its visualization image to specified destination.
+
     Args:
         tensor: predicted traffic state tensor, of shape (1, 69*69)
         dest: destination path of saving
@@ -196,6 +199,7 @@ def retrieve_hyps(path: str):
     '''
     Retrieve hyperparameters that needed for reconstructing saved models from
     model name string.
+
     Args:
         path: path to serialize model state_dict file
     Returns:
@@ -207,6 +211,7 @@ def retrieve_hyps(path: str):
 def run(model_path, data_path, dest_path, size):
     '''
     Main function of predict module.
+
     Args:
         model_path: path to the trained model
         data_path: path to where init states at
