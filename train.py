@@ -251,6 +251,7 @@ class S2FDatasetRAM(data.Dataset):
 
 
 # Classification dataset
+# TODO: Please clean unused variables
 class SnapshotClassificationDataset(data.Dataset):
     '''
     A dataset that divide time snapshots into n classes, where n is the number
@@ -286,6 +287,7 @@ class SnapshotClassificationDataset(data.Dataset):
         return X, y
 
 
+# TODO: Please clean unused variables
 class SnapshotClassificationDatasetRAM(data.Dataset):
     '''
     The same dataset as SnapshotClassificationDataset, but load all data into
@@ -576,7 +578,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 if avg_val_loss < valid_loss_min:
 
                     print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
+
+                    # TODO: Wrap the following save functionality into functions. Too messy now.
                     # saving state_dict of model
+                    # TODO: add `nm` and `hd` key to hyps
                     torch.save(model.state_dict(),
                                f'trained_models/\
                                  LSTM-is{hyps["is"]}-os{hyps["os"]}\
