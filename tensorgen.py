@@ -41,6 +41,7 @@ from multiprocessing import Pool, cpu_count
 def f(worker):
     '''
     Start a worker's generation.
+
     Args:
         worker: a process object
     '''
@@ -52,6 +53,7 @@ def f(worker):
 def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
     '''
     Main function of this data generation module.
+
     Args:
         src: database table name string
         stp: start time point string
