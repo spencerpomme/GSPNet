@@ -35,7 +35,7 @@ import torch
 
 from torch import nn, optim
 from torch.utils import data
-from torch.utils.data import TensorDataset, DataLoader, SubsetRandomSampler
+from torch.utils.data import TensorDataset, DataLoader, SubsetRandomSampler, SequentialSampler
 from glob import iglob, glob
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
@@ -356,7 +356,7 @@ def save_model(model, dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
-    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pkl'
+    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt'
     torch.save(model.state_dict(), dest + '/' + name)
 
 
@@ -559,7 +559,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 # printing loss stats
                 print(
                     f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} ' +
-                    '| Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
+                    f'| Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
                     flush=True)
 
                 # decide whether to save model or not:
@@ -663,10 +663,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         vl.append(avg_val_loss)
         # printing loss stats
         print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} \
-             | Loss: {avg_tra_loss:.4f} \
-             | Val Loss: {avg_val_loss:.4f} \
-             | Min Val: {valid_loss_min:.4f}',
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
             flush=True)
 
         # decide whether to save model or not:
@@ -741,18 +738,23 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, 
         'dp': drop_prob
     }
 
-    # Initialize data loaders
-    train_dir = 'dataset/2018_15min/tensors'
-    valid_dir = 'dataset/2018_15min/tensors'
+    data_dir = 'dataset/2018_15min/tensors'
+    data_set = S2FDatasetRAM(data_dir, sequence_length)
 
-    # LSTM data loader
-    train_set = S2FDatasetRAM(train_dir, sequence_length)
-    valid_set = S2FDatasetRAM(valid_dir, sequence_length)
-    train_loader = DataLoader(train_set, shuffle=False, batch_size=batch_size,
-                              num_workers=0, drop_last=True)
+    # split dataset
+    num_train = len(data_set)
+    indices = list(range(num_train))
+    split = int(np.floor(0.8 * num_train))  # manually set to 0.8
 
-    valid_loader = DataLoader(valid_set, shuffle=False, batch_size=batch_size,
-                              num_workers=0, drop_last=True)
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SequentialSampler(train_idx)
+    valid_sampler = SequentialSampler(valid_idx)
+
+    train_loader = DataLoader(data_set, sampler=train_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
+
+    valid_loader = DataLoader(data_set, sampler=valid_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
     model = models.__dict__[model_name](input_size, output_size, hidden_dim,
@@ -907,7 +909,7 @@ def create_loader(dataset, vs: float, rs: int, sampler: str):
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateLSTM', 5, sl=2, bs=128,
-                      lr=0.001, hd=1024, nl=2, dp=0.5)
+    run_lstm_training('VanillaStateLSTM', 5, sl=96, bs=32,
+                      lr=0.001, hd=1024, nl=2, dp=0.8)
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     print('\n')
