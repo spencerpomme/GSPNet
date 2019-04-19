@@ -356,7 +356,7 @@ def save_model(model, dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
-    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pkl'
     torch.save(model.state_dict(), dest + '/' + name)
 
 
@@ -696,11 +696,12 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 
 
 # run functions of this module
-def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
+def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     '''
     Main function of lstm training.
 
     Args:
+        model_name: model name
         epochs: number of epochs to train
         sl: sequence_length,
         bs: batch_size,
@@ -709,7 +710,6 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
         nl: n_layers,
         dp: drop_prob
     '''
-    model_name = 'VanillaStateLSTM'
     # LSTM Model Data params
     sequence_length = sl  # number of time slices in a sequence
     clip = 5
@@ -756,8 +756,8 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
                               num_workers=0, drop_last=True)
 
     # initialize model
-    model = VanillaStateLSTM(input_size, output_size, hidden_dim,
-                             n_layers=n_layers, drop_prob=drop_prob)
+    model = models.__dict__[model_name](input_size, output_size, hidden_dim,
+                                        n_layers=n_layers, drop_prob=drop_prob)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -908,6 +908,7 @@ def create_loader(dataset, vs: float, rs: int, sampler: str):
 
 if __name__ == '__main__':
 
-    # run_lstm_training(20, sl=24, bs=128, lr=0.00001, hd=1024, nl=2, dp=0.5)
+    run_lstm_training('VanillaStateLSTM', 5, sl=2, bs=128,
+                      lr=0.001, hd=1024, nl=2, dp=0.5)
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
-    print('main')
+    print('\n')
