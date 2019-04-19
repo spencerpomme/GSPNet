@@ -234,16 +234,24 @@ def retrieve_hyps(path: str):
     return hyps
 
 
-def reconstruct(hyps: dict):
+def reconstruct(model_path: str):
     '''
     Reconstruct the trained model from serialized .pt file.
 
     Args:
-        hyps: a dictionary containing necessary information to reconstruct
-              LSTM model
+        model_path: actual place saving the model
     Returns:
         model: a reconstructed LSTM model
     '''
+    # load model, decide device
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
+    # extract model information from model_path string
+    hyps = retrieve_hyps(model_path)
+
     model = models.__dict__[hyps['mn']](
         hyps['is'],
         hyps['os'],
@@ -252,6 +260,9 @@ def reconstruct(hyps: dict):
         drop_prob=hyps['dp'],
         train_on_gpu=True
     )
+
+    model.load_state_dict(torch.load(model_path))
+    model.to(device)
 
     return model
 
@@ -267,15 +278,9 @@ def run(model_path, data_path, dest_path, size):
         size: size of predicted future states
     '''
     print('Start predicting future states...')
-    # extract model information from model_path string
-    hyps = retrieve_hyps(model_path)
-    # load model
-    device = torch.device('cuda')
     # recontruct model
-    model = reconstruct(hyps)
+    model = reconstruct(model_path)
 
-    model.load_state_dict(torch.load(model_path))
-    model.to(device)
     states, truths = load(data_path, size, seq_len)
     sample(model, states, size, dest_path)
     # save actual future
