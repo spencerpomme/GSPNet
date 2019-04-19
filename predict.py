@@ -182,7 +182,7 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
     image_dest += f'/{"r" if real else "p"}-{id}.png'
     tensor_dest += f'/{"r" if real else "p"}-{id}.pkl'
     # save tensor
-    torch.save(tensor, image_dest)
+    torch.save(tensor, tensor_dest)
     # tensor to image
     tensor = tensor.cpu()
     tensor = tensor.detach().numpy()
@@ -208,7 +208,7 @@ def retrieve_hyps(path: str):
     path = path.split('/')[1]
 
     # hyperparameter extraction patterns
-    model_name_pt = re.compile('(^\s(?=-)')
+    model_name_pt = re.compile('^[A-Za-z]*(?=-)')
     input_size_pt = re.compile('(?<=is)\d*')
     output_size_pt = re.compile('(?<=os)\d*')
     seq_len_pt = re.compile('(?<=sl)\d*')
@@ -226,7 +226,7 @@ def retrieve_hyps(path: str):
         'sl': int(seq_len_pt.findall(path)[0]),
         'bs': int(batch_size_pt.findall(path)[0]),
         'nl': int(n_layers_pt.findall(path)[0]),
-        'hd': int(hidden_size_pt.findall(path)[0])
+        'hd': int(hidden_size_pt.findall(path)[0]),
         'lr': float(lr_pt.findall(path)[0]),
         'dp': float(drop_prob_pt.findall(path)[0])
     }
