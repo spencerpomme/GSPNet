@@ -468,6 +468,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
         hyps:               A dict containing model parameters
         clip:               Clip the overly large gradient
         show_every_batches: Display loss every this number of time steps
+        multi_gpus:         Whether have multiple GPUs
 
     Returns:
         A trained model. The best model will also be saved locally.
@@ -492,7 +493,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
     print("Training for %d epoch(s)..." % n_epochs)
     for epoch_i in range(1, n_epochs + 1):
 
-        if TRAIN_ON_MULTI_GPUS:
+        if TRAIN_ON_MULTI_GPUS and multi_gpus:
             hidden = model.module.init_hidden(batch_size)
         else:
             hidden = model.init_hidden(batch_size)
@@ -557,10 +558,8 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} \
-                     | Loss: {avg_tra_loss:.4f} \
-                     | Val Loss: {avg_val_loss:.4f} \
-                     | Min Val: {valid_loss_min:.4f}',
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} ' +
+                    '| Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
                     flush=True)
 
                 # decide whether to save model or not:
