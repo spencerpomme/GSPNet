@@ -214,7 +214,7 @@ def retrieve_hyps(path: str):
     seq_len_pt = re.compile('(?<=sl)\d*')
     batch_size_pt = re.compile('(?<=bs)\d*')
     n_layers_pt = re.compile('(?<=nl)\d')
-    hidden_size_pt = re.compile('(?<=hd)\d')
+    hidden_size_pt = re.compile('(?<=hd)\d*')
     lr_pt = re.compile('(?<=lr)0.\d*')
     drop_prob_pt = re.compile('(?<=dp)0.\d*')
 
@@ -234,12 +234,13 @@ def retrieve_hyps(path: str):
     return hyps
 
 
-def reconstruct(model_path: str):
+def reconstruct(model_path: str, hyps: dict):
     '''
     Reconstruct the trained model from serialized .pt file.
 
     Args:
         model_path: actual place saving the model
+        hyps: dictionary of infos needed to reconstruct model
     Returns:
         model: a reconstructed LSTM model
     '''
@@ -248,9 +249,6 @@ def reconstruct(model_path: str):
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
-
-    # extract model information from model_path string
-    hyps = retrieve_hyps(model_path)
 
     model = models.__dict__[hyps['mn']](
         hyps['is'],
@@ -278,8 +276,12 @@ def run(model_path, data_path, dest_path, size):
         size: size of predicted future states
     '''
     print('Start predicting future states...')
+    # extract model information from model_path string
+    hyps = retrieve_hyps(model_path)
+
     # recontruct model
-    model = reconstruct(model_path)
+    model = reconstruct(model_path, hyps)
+    seq_len = hyps['sl']
 
     states, truths = load(data_path, size, seq_len)
     sample(model, states, size, dest_path)
