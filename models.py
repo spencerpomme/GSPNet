@@ -242,6 +242,16 @@ class EmbedStateRNN(nn.Module):
         return hidden
 
 
+# TODO: finish this `yakkaina` model
+class MultiDimLSTM(nn.Module):
+    '''
+    '''
+    def __init__(self):
+        '''
+        '''
+        pass
+
+
 # classification model(s)
 class PeriodClassifier1(nn.Module):
     '''
