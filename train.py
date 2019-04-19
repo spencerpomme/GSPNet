@@ -42,6 +42,7 @@ from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
 # import models
+import models
 from models import *
 
 # Environment global variable
@@ -346,29 +347,17 @@ class SnapshotClassificationDatasetRAM(data.Dataset):
 
 
 # helper functions
-def save_model(filename: str, model):
+def save_model(model, dest: str, hyps: dict):
     '''
     Save model to local file.
 
     Args:
-        filename: file name string
         model: trained model
+        dest: folder to save trained model
+        hyps: hyperparameters of the trained model
     '''
-    save_filename = os.path.splitext(os.path.basename(filename))[0] + '.pt'
-    torch.save(model, save_filename)
-
-
-def load_model(filename: str):
-    '''
-    Load trained model.
-
-    Args:
-        filename: file name string
-    Returns:
-        loaded torch model
-    '''
-    save_filename = os.path.splitext(os.path.basename(filename))[0] + '.pt'
-    return torch.load(save_filename)
+    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+    torch.save(model.state_dict(), dest + '/' + name)
 
 
 # data feeder, type 2, deprecated
@@ -579,15 +568,8 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
                     print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
 
-                    # TODO: Wrap the following save functionality into functions. Too messy now.
                     # saving state_dict of model
-                    # TODO: add `nm` and `hd` key to hyps
-                    torch.save(model.state_dict(),
-                               f'trained_models/\
-                                 LSTM-is{hyps["is"]}-os{hyps["os"]}\
-                                     -sl{hyps["sl"]}-bs{hyps["bs"]}\
-                                     -lr{hyps["lr"]}-nl{hyps["nl"]}\
-                                     -dp{hyps["dp"]}.pt')
+                    save_model(model, 'trained_models', hyps)
 
                     valid_loss_min = avg_val_loss
                     early_stop_count = 0
@@ -695,9 +677,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
                     Saving...', flush=True)
 
             torch.save(model.state_dict(),
-                       f'trained_models/Classifier-bs{hyps["bs"]}\
-                                                  -lr{hyps["lr"]}-nc{hyps["nc"]}\
-                                                  -dp{hyps["dp"]}.pt')
+                       f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
 
             valid_loss_min = avg_val_loss
             early_stop_count = 0
@@ -729,6 +709,7 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
         nl: n_layers,
         dp: drop_prob
     '''
+    model_name = 'VanillaStateLSTM'
     # LSTM Model Data params
     sequence_length = sl  # number of time slices in a sequence
     clip = 5
@@ -750,6 +731,7 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
 
     # wrap essential info into dictionary:
     hyps = {
+        'mn': model_name,
         'is': input_size,
         'os': output_size,
         'sl': sequence_length,
@@ -805,20 +787,20 @@ def run_lstm_training(epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
     plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
 
     plt.savefig(
-        'trained_models' +
-        f'/LSTM-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}\
-               -lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
+        'trained_models' + '/' +
+        f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
 
 
-def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
+def run_classifier_training(model_name, epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
     '''
     Main function of cnn classifier training.
 
     Args:
+        model_name: model name
         epochs: number of epochs to train
-        nc: n classes
+        nc: number of classes
         vs: validation size, proportion of validation data set
         rs: random seed
         lr: learning_rate
@@ -838,6 +820,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 
     # wrap essential info into dictionary:
     hyps = {
+        'mn': model_name,
         'bs': batch_size,
         'lr': learning_rate,
         'nc': nc,
@@ -869,7 +852,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
-    model = PeriodClassifier3(n_classes=nc)
+    model = models.__dict__[model_name](n_classes=nc)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -901,7 +884,7 @@ def run_classifier_training(epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
 
     plt.savefig(
         'trained_models' +
-        f'/Classifier-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
+        f'/mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
 
@@ -925,5 +908,6 @@ def create_loader(dataset, vs: float, rs: int, sampler: str):
 
 if __name__ == '__main__':
 
-    run_lstm_training(20, sl=12, bs=256, lr=0.001, hd=512, nl=3, dp=0.5)
+    # run_lstm_training(20, sl=24, bs=128, lr=0.00001, hd=1024, nl=2, dp=0.5)
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
+    print('main')
