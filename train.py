@@ -773,7 +773,7 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, 
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
-
+    # criterion = nn.L1Loss()
     # start training
     trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
                                      epochs, train_loader, valid_loader, hyps)
