@@ -208,7 +208,7 @@ def retrieve_hyps(path: str):
     path = path.split('/')[1]
 
     # hyperparameter extraction patterns
-    model_name_pt = re.compile('^[A-Za-z]*(?=-)')
+    model_name_pt = re.compile('(?<=mn)[A-Za-z]*(?=-)')
     input_size_pt = re.compile('(?<=is)\d*')
     output_size_pt = re.compile('(?<=os)\d*')
     seq_len_pt = re.compile('(?<=sl)\d*')
@@ -220,7 +220,7 @@ def retrieve_hyps(path: str):
 
     # create dictionary for information to reconstruct model
     hyps = {
-        'nm': model_name_pt.findall(path)[0],
+        'mn': model_name_pt.findall(path)[0],
         'is': int(input_size_pt.findall(path)[0]),
         'os': int(output_size_pt.findall(path)[0]),
         'sl': int(seq_len_pt.findall(path)[0]),
@@ -244,7 +244,7 @@ def reconstruct(hyps: dict):
     Returns:
         model: a reconstructed LSTM model
     '''
-    model = models.__dict__[hyps['nm']](
+    model = models.__dict__[hyps['mn']](
         hyps['is'],
         hyps['os'],
         hidden_dim=hyps['hd'],
@@ -286,7 +286,7 @@ def run(model_path, data_path, dest_path, size):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/LSTM-is14283-os14283-sl12-bs256-lr0.001-nl3-dp0.5.pt'
+    model_path = 'trained_models/mnVanillaStateLSTM-is14283-os14283-sl2-bs128-hd1024-lr0.001-nl2-dp0.5.pkl'
     data_path = 'dataset/2018_15min/tensors'
     dest_path = 'future_states'
     run(model_path, data_path, dest_path, 14)
