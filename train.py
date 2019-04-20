@@ -909,7 +909,7 @@ def create_loader(dataset, vs: float, rs: int, sampler: str):
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateLSTM', 5, sl=96, bs=32,
+    run_lstm_training('VanillaStateGRU', 5, sl=672, bs=2,
                       lr=0.001, hd=1024, nl=2, dp=0.8)
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     print('\n')
