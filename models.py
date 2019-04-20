@@ -139,6 +139,105 @@ class VanillaStateLSTM(nn.Module):
         return hidden
 
 
+class VanillaStateGRU(nn.Module):
+    '''
+    The baseline model.
+
+    A simple GRU model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
+                 drop_prob=0.5, train_on_gpu=True):
+        '''
+        GRU model initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size, a 3d tensor
+                            with shape (69, 69, 3) to generate visual image
+            hidden_dim:     hidden size of gru layers
+            n_layers:       number of gru layers
+            drop_prob:      drop out rate
+            lr:             learning rate
+        '''
+        super().__init__()
+        self.output_size = output_size
+        self.hidden_dim = hidden_dim
+        self.n_layers = n_layers
+        self.drop_prob = drop_prob
+        self.train_on_gpu = train_on_gpu
+
+        # define the gru
+        self.gru = nn.GRU(input_size, self.hidden_dim, n_layers,
+                          dropout=drop_prob, batch_first=True)
+
+        # dropout layer
+        self.dropout = nn.Dropout(self.drop_prob)
+
+        # define the final, fully-connected output layer
+        self.fc = nn.Linear(hidden_dim, self.output_size)
+
+    def forward(self, x, hidden):
+        '''
+        Forward pass through the network.
+        These inputs are x, and the hidden/cell state `hidden`.
+
+        Args:
+            x:      input state vector (flattened)
+            hidden: hidden state of t-1
+        Returns:
+            out:    output of current time step
+            hidden: hidden state of t
+        '''
+        batch_size = x.size(0)
+        # The below three lines are for debug use, DO NOT remove.
+        # print('*' * 20)
+        # print(f'x shape: {x.shape}')
+        # print(f'hidden[0] size is: {hidden[0].shape} | expected hidden[0] is {(2, x.size(0), 1024)}')
+
+        # reshape hidden state, because using multiple GPUs
+        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
+
+        gru_out, hidden = self.gru(x, hidden)
+        gru_out = gru_out.contiguous().view(-1, self.hidden_dim)
+        out = self.fc(gru_out)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+        # get the last output, because we decide the output traffic state is
+        # caused by previous N (N >= 2) states.
+        out = out[:, -1]
+
+        # reshape hidden state, because using multiple GPUs
+        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
+
+        # return the final output and the hidden state
+        return out, hidden
+
+    def init_hidden(self, batch_size):
+        '''
+        Initializes hidden state.
+
+        Args:
+            batch_size: divide the traffic state sequence into batch_size equally long
+                        sub-sequences, for parallelization.
+        Returns:
+            hidden:     initialized hidden state
+        '''
+        # Create two new tensors with sizes n_layers x batch_size x n_hidden,
+        # initialized to zero, for hidden state and cell state of gru
+        weight = next(self.parameters()).data
+
+        if self.train_on_gpu:
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda(),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda())
+        else:
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
+
+        return hidden
+
+
 # TODO: finish this model
 class EmbedStateRNN(nn.Module):
     '''
