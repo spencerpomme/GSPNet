@@ -124,6 +124,7 @@ def load(prime_dir: str, size: int, seq_len: int):
     truths = []
 
     # select a random place to start draw the prime
+    np.random.seed(0)
     start = np.random.randint(0, len(paths)-seq_len)
 
     print(f'Prime states id: {start} -> {start+seq_len}')
