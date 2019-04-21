@@ -741,10 +741,10 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, 
     data_dir = 'dataset/2018_15min/tensors'
     data_set = S2FDatasetRAM(data_dir, sequence_length)
 
-    # split dataset
+    # split dataset for training and validation
     num_train = len(data_set)
     indices = list(range(num_train))
-    split = int(np.floor(0.8 * num_train))  # manually set to 0.8
+    split = int(np.floor(0.8 * num_train))  # hard coded to 0.8
 
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SequentialSampler(train_idx)
@@ -834,6 +834,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs, lr=0.001, bs=128, dp
     # LSTM data loader
     data_set = SnapshotClassificationDatasetRAM(data_dir)
 
+    # split data for training and validation
     num_train = len(data_set)
     indices = list(range(num_train))
     split = int(np.floor(vs * num_train))
@@ -888,23 +889,6 @@ def run_classifier_training(model_name, epochs, nc, vs, rs, lr=0.001, bs=128, dp
         f'/mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
     )
     plt.show()
-
-
-def create_loader(dataset, vs: float, rs: int, sampler: str):
-    '''
-    Create training dataset loader and validation dataset loader.
-    Sampler selection supported.
-
-    Args:
-        dataset: a pytorch dataset object
-        vs: validation size, a proportion
-        rs: random seed
-        sampler: sampler type in string
-    Returns:
-        train_loader: training dataset loader
-        valid_loader: validation dataset loader
-    '''
-    pass
 
 
 if __name__ == '__main__':
