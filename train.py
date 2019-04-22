@@ -917,6 +917,6 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateGRU', 5, sl=24, bs=16,
-                      lr=0.01, hd=1024, nl=2, dp=0.25, device='cuda:1')
+    run_lstm_training('VanillaStateGRU', 5, sl=24, bs=128,
+                      lr=0.001, hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
