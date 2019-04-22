@@ -71,7 +71,7 @@ def predict(model, states, hidden):
     return out[-1], hidden
 
 
-def sample(model, states, size, dest):
+def sample(model, states, size, dest, device='cuda:0'):
     '''
     Generate a size of future traffic state tensors (snapshots).
 
@@ -80,11 +80,12 @@ def sample(model, states, size, dest):
         states: the initial states, shaped (1, 69*69)
         size: number of to be generated future states
         dest: saving destination
+        device: hardware
     Returns:
         preds: generated future traffic state tensors
     '''
     # move tensor to GPU
-    states = states.cuda()
+    states = states.to(device)
 
     seq_len = len(states)
     batch_size = seq_len
@@ -235,7 +236,7 @@ def retrieve_hyps(path: str):
     return hyps
 
 
-def reconstruct(model_path: str, hyps: dict):
+def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
     '''
     Reconstruct the trained model from serialized .pt file.
 
@@ -247,7 +248,7 @@ def reconstruct(model_path: str, hyps: dict):
     '''
     # load model, decide device
     if torch.cuda.is_available():
-        device = torch.device('cuda')
+        device = torch.device(device)
     else:
         device = torch.device('cpu')
 
@@ -257,7 +258,8 @@ def reconstruct(model_path: str, hyps: dict):
         hidden_dim=hyps['hd'],
         n_layers=hyps['nl'],
         drop_prob=hyps['dp'],
-        train_on_gpu=True
+        train_on_gpu=True,
+        device=device
     )
 
     model.load_state_dict(torch.load(model_path))
@@ -266,7 +268,7 @@ def reconstruct(model_path: str, hyps: dict):
     return model
 
 
-def run(model_path, data_path, dest_path, size):
+def run(model_path, data_path, dest_path, size, device):
     '''
     Main function of predict module.
 
@@ -275,17 +277,18 @@ def run(model_path, data_path, dest_path, size):
         data_path: path to where init states at
         dest_path: destination to save prediction
         size: size of predicted future states
+        device: gpu or cpu
     '''
     print('Start predicting future states...')
     # extract model information from model_path string
     hyps = retrieve_hyps(model_path)
 
     # recontruct model
-    model = reconstruct(model_path, hyps)
+    model = reconstruct(model_path, hyps, device=device)
     seq_len = hyps['sl']
 
     states, truths = load(data_path, size, seq_len)
-    sample(model, states, size, dest_path)
+    sample(model, states, size, dest_path, device)
     # save actual future
     for i, truth in enumerate(truths):
         save_to(truth, dest_path, True, i)
@@ -297,4 +300,4 @@ if __name__ == '__main__':
     model_path = 'trained_models/mnVanillaStateLSTM-is14283-os14283-sl2-bs128-hd1024-lr0.001-nl2-dp0.5.pkl'
     data_path = 'dataset/2018_15min/tensors'
     dest_path = 'future_states'
-    run(model_path, data_path, dest_path, 14)
+    run(model_path, data_path, dest_path, 14, 'cuda:1')
