@@ -423,7 +423,10 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     """
     # Creating new variables for the hidden state, otherwise
     # we'd backprop through the entire training history
-    h = tuple([each.data for each in hidden])
+    if type(hidden) == tuple:
+        h = tuple([each.data for each in hidden])
+    else:
+        h = hidden.data
 
     # zero accumulated gradients
     if TRAIN_ON_MULTI_GPUS:
@@ -433,6 +436,8 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
     # print(f'input shape: {inp}, target shape: {target}')
     # get the output from the model
+    print(f'inp.shape -> {inp.shape}')
+    print(f'h.shape -> {h.shape}')
     output, h = model(inp, h)
 
     # perform backpropagation and optimization
@@ -452,9 +457,9 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 
 # training function for sequential prediction
-def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
-               train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
-               show_every_n_batches=1, multi_gpus=True, device='cuda:0'):
+def train_recurrent(model, batch_size, optimizer, criterion, n_epochs,
+                    train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
+                    show_every_n_batches=1, multi_gpus=True, device='cuda:0'):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -549,7 +554,11 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
                     # Creating new variables for the hidden state, otherwise
                     # we'd backprop through the entire training history
-                    val_h = tuple([each.data for each in val_h])
+                    # if type is tuple, then the model is LSTM
+                    if type(val_h) == tuple:
+                        val_h = tuple([each.data for each in val_h])
+                    else:
+                        val_h = val_h.data
 
                     v_output, val_h = model(v_inputs, val_h)
                     val_loss = criterion(v_output, v_labels)
@@ -769,6 +778,7 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64,
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
+    print('hyps:\n', hyps)
     model = models.__dict__[model_name](input_size, output_size, hidden_dim,
                                         n_layers=n_layers, drop_prob=drop_prob,
                                         device=device)
@@ -789,7 +799,7 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64,
     criterion = nn.MSELoss()
     # criterion = nn.L1Loss()
     # start training
-    trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
+    trained_model, tlvl = train_recurrent(model, batch_size, optimizer, criterion,
                                      epochs, train_loader, valid_loader, hyps,
                                      device=device)
 
@@ -908,7 +918,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateLSTM', 5, sl=900, bs=1,
-                      lr=0.001, hd=1024, nl=1, dp=0.8, device='cuda:1')
+    run_lstm_training('VanillaStateGRU', 5, sl=12, bs=1,
+                      lr=0.001, hd=1024, nl=2, dp=0.8, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     print('\n')
