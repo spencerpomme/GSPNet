@@ -27,3 +27,19 @@ import torch
 import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
+
+
+def dich_mse_loss(output, label):
+    '''
+    Dichotomy mean square error loss.
+
+    Args:
+        output: calculated prediction tensor
+        label: ground truth
+    Return:
+        loss: dich_mes_loss
+    '''
+    mse = (output - label) ** 2
+    loss = mse / (1/(torch.max(torch.max(predict),
+                               torch.max(target)) + 1) + output * label)
+    return loss
