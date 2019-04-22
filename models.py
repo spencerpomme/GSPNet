@@ -200,7 +200,7 @@ class VanillaStateGRU(nn.Module):
         # print(f'hidden[0] size is: {hidden[0].shape} | expected hidden[0] is {(2, x.size(0), 1024)}')
 
         # reshape hidden state, because using multiple GPUs
-        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
+        hidden = hidden.permute(1, 0, 2).contiguous()
 
         gru_out, hidden = self.gru(x, hidden)
         gru_out = gru_out.contiguous().view(-1, self.hidden_dim)
@@ -213,7 +213,7 @@ class VanillaStateGRU(nn.Module):
         out = out[:, -1]
 
         # reshape hidden state, because using multiple GPUs
-        hidden = tuple([h.permute(1, 0, 2).contiguous() for h in hidden])
+        hidden = hidden.permute(1, 0, 2).contiguous()
 
         # return the final output and the hidden state
         return out, hidden
@@ -233,11 +233,9 @@ class VanillaStateGRU(nn.Module):
         weight = next(self.parameters()).data
 
         if self.train_on_gpu:
-            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc),
-                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc))
+            hidden = weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc)
         else:
-            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
-                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
+            hidden = weight.new(batch_size, self.n_layers, self.hidden_dim).zero_()
 
         return hidden
 
