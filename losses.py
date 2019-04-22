@@ -29,17 +29,19 @@ from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 
 
-def dich_mse_loss(output, label):
+def dich_mse_loss(output, label, alpha=0.1):
     '''
     Dichotomy mean square error loss.
 
     Args:
         output: calculated prediction tensor
         label: ground truth
+        alpha: weight of 0 -> Non-zero punishment
+               A value in (0, 1]
     Return:
         loss: dich_mes_loss
     '''
-    mse = (output - label) ** 2
-    loss = mse / (1/(torch.max(torch.max(output),
-                               torch.max(label)) + 1) + output * label)
-    return torch.sum(loss)
+    loss = torch.where(((output != 0) & (label == 0)) | ((output == 0) & (label != 0)),
+                       (1/alpha)*torch.max(output, label)**2, (output-label)**2)
+
+    return torch.mean(loss)
