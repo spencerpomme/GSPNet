@@ -454,7 +454,7 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 # training function for sequential prediction
 def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
                train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
-               show_every_n_batches=1, multi_gpus=True):
+               show_every_n_batches=1, multi_gpus=True, device='cuda:0'):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -470,7 +470,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
         clip:               Clip the overly large gradient
         show_every_batches: Display loss every this number of time steps
         multi_gpus:         Whether have multiple GPUs
-
+        device:             location to put tensor/model
     Returns:
         A trained model. The best model will also be saved locally.
     '''
@@ -514,10 +514,12 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
             # forward, back prop
             # print(f'inputs shape: {inputs.shape} labels shape: {labels.shape}')
             # print(f'inputs dtype: {inputs[0][0][0].dtype} label shape: {labels[0][0].dtype}')
-            inputs, labels = inputs.cuda(), labels.cuda()
+            if TRAIN_ON_MULTI_GPUS and multi_gpus:
+                inputs, labels = inputs.cuda(), labels.cuda()
+            elif torch.cuda.is_available():
+                inputs, labels = inputs.to(device), labels.to(device)
 
             #  print(f'Input shape: {inputs.shape}')
-
             loss, hidden = forward_back_prop(
                 model, optimizer, criterion, inputs, labels, hidden, clip
             )
@@ -540,7 +542,10 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 
                 for v_inputs, v_labels in valid_loader:
 
-                    v_inputs, v_labels = v_inputs.cuda(), v_labels.cuda()
+                    if TRAIN_ON_MULTI_GPUS and multi_gpus:
+                        v_inputs, v_labels = v_inputs.cuda(), v_labels.cuda()
+                    elif torch.cuda.is_available():
+                        v_inputs, v_labels = v_inputs.to(device), v_labels.to(device)
 
                     # Creating new variables for the hidden state, otherwise
                     # we'd backprop through the entire training history
@@ -589,7 +594,7 @@ def train_lstm(model, batch_size, optimizer, criterion, n_epochs,
 # training function of CNN classification
 def train_classifier(model, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
-                     stop_criterion=20,
+                     stop_criterion=20, device='cuda:0',
                      show_every_n_batches=100):
     '''
     Train a CNN classifier with the given hyperparameters.
@@ -602,6 +607,8 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         train_loader:       Training data loader
         valid_loader:       Validation data loader
         hyps:               A dict containing hyperparameters
+        stop_criterion:     Early stop variable
+        device:             Training device
         show_every_batches: Display loss every this number of time steps
     Returns:
         A trained model. The best model will also be saved locally.
@@ -635,7 +642,10 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         for data, label in train_loader:
 
             # forward, back prop
-            data, label = data.cuda(), label.cuda()
+            if TRAIN_ON_MULTI_GPUS:
+                data, label = data.cuda(), label.cuda()
+            elif torch.cuda.is_available():
+                data, label = data.to(device), label.to(device)
             optimizer.zero_grad()
             output = model(data)
             loss = criterion(output, label)
@@ -760,13 +770,14 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64,
 
     # initialize model
     model = models.__dict__[model_name](input_size, output_size, hidden_dim,
-                                        n_layers=n_layers, drop_prob=drop_prob)
+                                        n_layers=n_layers, drop_prob=drop_prob,
+                                        device=device)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
         model = nn.DataParallel(model).cuda()
     elif torch.cuda.is_available():
-        model = model.cuda()
+        model = model.to(device)
     else:
         print('Training on CPU, very long training time is expectable.')
 
@@ -779,7 +790,8 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64,
     # criterion = nn.L1Loss()
     # start training
     trained_model, tlvl = train_lstm(model, batch_size, optimizer, criterion,
-                                     epochs, train_loader, valid_loader, hyps)
+                                     epochs, train_loader, valid_loader, hyps,
+                                     device=device)
 
     # loss plot
     tl, vl = tlvl
@@ -863,7 +875,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
     if TRAIN_ON_MULTI_GPUS:
         model = nn.DataParallel(model).cuda()
     elif torch.cuda.is_available():
-        model = model.cuda()
+        model = model.to(device)
     else:
         print('Training on CPU, very long training time is expectable.')
 
@@ -896,7 +908,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateLSTM', 5, sl=4, bs=100,
-                      lr=0.001, hd=1024, nl=2, dp=0.8)
+    run_lstm_training('VanillaStateLSTM', 5, sl=900, bs=1,
+                      lr=0.001, hd=1024, nl=1, dp=0.8, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     print('\n')
