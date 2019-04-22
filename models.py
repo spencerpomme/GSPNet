@@ -48,7 +48,7 @@ class VanillaStateLSTM(nn.Module):
     A simple LSTM model, without any preprocessing to the inputs.
     '''
     def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
-                 drop_prob=0.5, train_on_gpu=True):
+                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
         '''
         LSTM model initialization.
 
@@ -59,7 +59,8 @@ class VanillaStateLSTM(nn.Module):
             hidden_dim:     hidden size of lstm layers
             n_layers:       number of lstm layers
             drop_prob:      drop out rate
-            lr:             learning rate
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
         '''
         super().__init__()
         self.output_size = output_size
@@ -67,6 +68,7 @@ class VanillaStateLSTM(nn.Module):
         self.n_layers = n_layers
         self.drop_prob = drop_prob
         self.train_on_gpu = train_on_gpu
+        self.dvc = device
 
         # define the LSTM
         self.lstm = nn.LSTM(input_size, self.hidden_dim, n_layers,
@@ -120,8 +122,8 @@ class VanillaStateLSTM(nn.Module):
         Initializes hidden state.
 
         Args:
-            batch_size: divide the traffic state sequence into batch_size equally long
-                        sub-sequences, for parallelization.
+            batch_size: divide the traffic state sequence into batch_size
+                        equally long sub-sequences, for parallelization.
         Returns:
             hidden:     initialized hidden state
         '''
@@ -130,8 +132,8 @@ class VanillaStateLSTM(nn.Module):
         weight = next(self.parameters()).data
 
         if self.train_on_gpu:
-            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda(),
-                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda())
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc))
         else:
             hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
                       weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
@@ -147,7 +149,7 @@ class VanillaStateGRU(nn.Module):
     '''
 
     def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
-                 drop_prob=0.5, train_on_gpu=True):
+                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
         '''
         GRU model initialization.
 
@@ -158,7 +160,8 @@ class VanillaStateGRU(nn.Module):
             hidden_dim:     hidden size of gru layers
             n_layers:       number of gru layers
             drop_prob:      drop out rate
-            lr:             learning rate
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
         '''
         super().__init__()
         self.output_size = output_size
@@ -166,6 +169,7 @@ class VanillaStateGRU(nn.Module):
         self.n_layers = n_layers
         self.drop_prob = drop_prob
         self.train_on_gpu = train_on_gpu
+        self.dvc = device
 
         # define the gru
         self.gru = nn.GRU(input_size, self.hidden_dim, n_layers,
@@ -229,8 +233,8 @@ class VanillaStateGRU(nn.Module):
         weight = next(self.parameters()).data
 
         if self.train_on_gpu:
-            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda(),
-                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda())
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc))
         else:
             hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
                       weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
@@ -247,7 +251,7 @@ class EmbedStateRNN(nn.Module):
     '''
 
     def __init__(self, input_size, output_size, hidden_dim=256, n_layers=2,
-                 drop_prob=0.5, train_on_gpu=True):
+                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
         '''
         LSTM model initialization.
 
@@ -266,6 +270,7 @@ class EmbedStateRNN(nn.Module):
         self.n_layers = n_layers
         self.drop_prob = drop_prob
         self.train_on_gpu = train_on_gpu
+        self.dvc = device
 
         # define the LSTM
         self.lstm = nn.LSTM(input_size, self.hidden_dim,
@@ -332,8 +337,8 @@ class EmbedStateRNN(nn.Module):
         weight = next(self.parameters()).data
 
         if self.train_on_gpu:
-            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda(),
-                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().cuda())
+            hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc),
+                      weight.new(batch_size, self.n_layers, self.hidden_dim).zero_().to(self.dvc))
         else:
             hidden = (weight.new(batch_size, self.n_layers, self.hidden_dim).zero_(),
                       weight.new(batch_size, self.n_layers, self.hidden_dim).zero_())
