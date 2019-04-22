@@ -40,6 +40,6 @@ def dich_mse_loss(output, label):
         loss: dich_mes_loss
     '''
     mse = (output - label) ** 2
-    loss = mse / (1/(torch.max(torch.max(predict),
-                               torch.max(target)) + 1) + output * label)
-    return loss
+    loss = mse / (1/(torch.max(torch.max(output),
+                               torch.max(label)) + 1) + output * label)
+    return torch.sum(loss)
