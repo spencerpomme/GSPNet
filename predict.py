@@ -65,7 +65,10 @@ def predict(model, states, hidden):
     # here, batch_size == seq_len of intial states
     states = states.reshape(states.shape[0], 1, states.shape[1])
     # detach hidden from history
-    hidden = tuple([each.data for each in hidden])
+    if type(hidden) == tuple:
+        hidden = tuple([each.data for each in hidden])
+    else:
+        hidden = hidden.data
     out, hidden = model(states, hidden)
     # only want the last output
     return out[-1], hidden
@@ -297,7 +300,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnVanillaStateLSTM-is14283-os14283-sl2-bs128-hd1024-lr0.001-nl2-dp0.5.pkl'
+    model_path = 'trained_models/mnVanillaStateGRU-is14283-os14283-sl4-bs8-hd1024-lr0.001-nl2-dp0.3.pt'
     data_path = 'dataset/2018_15min/tensors'
     dest_path = 'future_states'
     run(model_path, data_path, dest_path, 14, 'cuda:1')
