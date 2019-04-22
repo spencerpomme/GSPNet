@@ -41,9 +41,10 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
-# import models
+# import models and loss functions
 import models
 from models import *
+from losses import *
 
 # Environment global variable
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
@@ -692,18 +693,19 @@ def train_classifier(model, optimizer, criterion, n_epochs,
 
 
 # run functions of this module
-def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, dp=0.5):
+def run_lstm_training(model_name, epochs, sl=12, bs=64,
+                      lr=0.001, hd=256, nl=2, dp=0.5, device='cuda:0'):
     '''
     Main function of lstm training.
 
     Args:
         model_name: model name
         epochs: number of epochs to train
-        sl: sequence_length,
-        bs: batch_size,
-        lr: learning_rate,
-        hd: hidden_dim,
-        nl: n_layers,
+        sl: sequence_length
+        bs: batch_size
+        lr: learning_rate
+        hd: hidden_dim
+        nl: n_layers
         dp: drop_prob
     '''
     # LSTM Model Data params
@@ -794,7 +796,8 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64, lr=0.001, hd=256, nl=2, 
     plt.show()
 
 
-def run_classifier_training(model_name, epochs, nc, vs, rs, lr=0.001, bs=128, dp=0.5):
+def run_classifier_training(model_name, epochs, nc, vs, rs,
+                            lr=0.001, bs=128, dp=0.5, device='cuda:0'):
     '''
     Main function of cnn classifier training.
 
@@ -893,7 +896,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs, lr=0.001, bs=128, dp
 
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateGRU', 5, sl=672, bs=2,
+    run_lstm_training('VanillaStateLSTM', 5, sl=4, bs=100,
                       lr=0.001, hd=1024, nl=2, dp=0.8)
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     print('\n')
