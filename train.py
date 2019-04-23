@@ -742,7 +742,7 @@ def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, d
     if TRAIN_ON_MULTI_GPUS:
         optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
     # start training
