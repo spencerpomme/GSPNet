@@ -185,7 +185,7 @@ def train_recurrent(model, batch_size, optimizer, criterion, n_epochs,
     torch.cuda.empty_cache()
     # start timing
     start = time.time()
-    print(f'Training started at {time.ctime()}')
+    print(f'Training on device {device} started at {time.ctime()}')
     # validation constants
     early_stop_count = 0
     valid_loss_min = np.inf
@@ -328,7 +328,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     torch.cuda.empty_cache()
     # start timing
     start = time.time()
-    print(f'Training classifier started at {time.ctime()}')
+    print(f'Training on device {device} started at {time.ctime()}')
     # validation constants
     early_stop_count = 0
     valid_loss_min = np.inf
@@ -434,7 +434,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
     torch.cuda.empty_cache()
     # start timing
     start = time.time()
-    print(f'Training auto encoder started at {time.ctime()}')
+    print(f'Training on device {device} started at {time.ctime()}')
     # validation constants
     valid_loss_min = np.inf
 
@@ -446,7 +446,6 @@ def train_encoder(model, optimizer, criterion, n_epochs,
     for epoch_i in range(1, n_epochs + 1):
 
         for data, label in loader:
-
             # forward, back prop
             if TRAIN_ON_MULTI_GPUS:
                 data, label = data.cuda(), label.cuda()
@@ -466,11 +465,11 @@ def train_encoder(model, optimizer, criterion, n_epochs,
         # printing loss stats
         print(
             f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.4f}', flush=True)
-
-        torch.save(model.state_dict(),
-                   f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-dp{hyps["dp"]}.pt')
         # clear
         losses = []
+
+    torch.save(model.state_dict(), 'trained_models' +
+               f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
 
     # returns a trained model
     end = time.time()
@@ -694,17 +693,15 @@ def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, d
         hd: hidden dim
         lr: learning_rate
         bs: batch_size
-        dp: drop_prob
     '''
     # Training parameters
     epochs = epochs
-    learning_rate = 0.001
+    learning_rate = lr
     batch_size = bs
 
     # Model parameters
     input_size = 69 * 69 * 3  # <- don't change this value
     output_size = input_size
-    drop_prob = 0.5
     hidden_dim = hd
 
     # wrap essential info into dictionary:
@@ -715,7 +712,6 @@ def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, d
         'hd': hidden_dim,
         'bs': batch_size,
         'lr': learning_rate,
-        'dp': drop_prob
     }
 
     # Initialize data loaders
@@ -746,14 +742,16 @@ def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, d
     criterion = nn.MSELoss()
 
     # start training
-    trained_model = train_encoder(model, optimizer, criterion, epochs, loader, hyps)
+    trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
+                                  hyps, device=device)
 
     return trained_model
 
 
 if __name__ == '__main__':
 
-    # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001, hd=1024, nl=2, dp=0.5, device='cuda:1')
+    # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001,
+    #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    run_encoder_training('AutoEncoder', 100, lr=0.01, hd=512)
+    run_encoder_training('AutoEncoder', 40, lr=0.1, hd=256, device='cuda:1')
