@@ -281,7 +281,7 @@ class AutoEncoder(nn.Module):
         '''
         batch_size = x.size(0)
         mid = F.relu(self.encoder(x))
-        out = torch.sigmoid(self.decoder(mid))
+        out = self.decoder(mid)
 
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
