@@ -128,7 +128,7 @@ def load(prime_dir: str, size: int, seq_len: int):
     truths = []
 
     # select a random place to start draw the prime
-    np.random.seed(0)
+    # np.random.seed(0)
     start = np.random.randint(0, len(paths)-seq_len)
 
     print(f'Prime states id: {start} -> {start+seq_len}')
@@ -301,6 +301,6 @@ def run(model_path, data_path, dest_path, size, device):
 if __name__ == '__main__':
 
     model_path = 'trained_models/mnVanillaStateGRU-is14283-os14283-sl4-bs8-hd1024-lr0.001-nl2-dp0.3.pt'
-    data_path = 'dataset/2018_15min/tensors'
+    data_path = 'data/2018_15min/tensors'
     dest_path = 'future_states'
     run(model_path, data_path, dest_path, 14, 'cuda:1')
