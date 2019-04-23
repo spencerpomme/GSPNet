@@ -162,11 +162,6 @@ class CSVSource(Source):
         '''
         return self.table.head(first_n_rows)
 
-    def analysis(self):
-        '''
-        '''
-        pass
-
 
 # ==================================#
 #  Data source: relational database #
