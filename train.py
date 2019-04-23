@@ -35,7 +35,8 @@ import torch
 
 from torch import nn, optim
 from torch.utils import data
-from torch.utils.data import TensorDataset, DataLoader, SubsetRandomSampler, SequentialSampler
+from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import SubsetRandomSampler, SequentialSampler
 from glob import iglob, glob
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
@@ -159,9 +160,10 @@ def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
 
 
 # training function for sequential prediction
-def train_recurrent(model, batch_size, optimizer, criterion, n_epochs,
-                    train_loader, valid_loader, hyps, clip=5, stop_criterion=20,
-                    show_every_n_batches=1, multi_gpus=True, device='cuda:0'):
+def train_recurrent(model, batch_size, optimizer, criterion,
+                    n_epochs, train_loader, valid_loader, hyps, clip=5,
+                    stop_criterion=20, show_every_n_batches=1, multi_gpus=True,
+                    device='cuda:0'):
     '''
     Train a LSTM model with the given hyperparameters.
 
@@ -298,7 +300,7 @@ def train_recurrent(model, batch_size, optimizer, criterion, n_epochs,
 
     # returns a trained model
     end = time.time()
-    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    print(f'Training ended at {time.ctime()}, took {end-start:.2f} seconds.')
     return model, (tl, vl)
 
 
@@ -683,7 +685,8 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
     plt.show()
 
 
-def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+def run_encoder_training(model_name, epochs,
+                         hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
     '''
     Main function of auto encoder.
 
