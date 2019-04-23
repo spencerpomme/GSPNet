@@ -19,7 +19,7 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Training methods and customized datset classes defined here.
+Training methods defined here.
 A part of GSPNet project.
 
 '''
@@ -41,310 +41,14 @@ from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
 from tqdm import tqdm
 
-# import models and loss functions
+# import models, loss functions and datasets
 import models
 from models import *
 from losses import *
+from datasets import *
 
 # Environment global variable
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
-
-
-# Customized RNN/LSTM datasets when dataset are to big to load at once into RAM
-# Data feeders, type 1 (using classes)
-class F2FDataset(data.Dataset):
-    '''
-    Frame to frame dataset.
-    '''
-
-    def __init__(self, datadir, seq_len):
-        '''
-        Initialization.
-
-        Args:
-            datadir: directory of serialized tensors
-            seq_len: timestep length of tensors
-        '''
-        self.paths = glob(datadir + '/*.pkl')
-        # only want full seq_len sized length numbers
-        self.seq_len = seq_len
-        self.length = len(self.paths) // seq_len * seq_len
-        self.idict = {}
-        for i in range(self.length):
-            self.idict[i] = self.paths[i]
-
-        self.input_ids = self.idict.keys()[:-1]
-        self.label_ids = self.idict.keys()[1:]
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples
-        '''
-        return self.length - self.seq_len
-
-    def __getitem__(self, index):
-        '''
-        Generates one sample of data
-        '''
-        # Load data and get label
-        X = torch.load(self.idict[self.input_ids[index]])
-        y = torch.load(self.idict[self.label_ids[index]])
-
-        return X, y
-
-
-class F2FDatasetRAM(data.Dataset):
-    '''
-    Frame to frame dataset.
-    '''
-
-    def __init__(self, datadir, seq_len):
-        '''
-        Initialization.
-
-        Args:
-            datadir: directory of serialized tensors
-            seq_len: timestep length of tensors
-        '''
-        self.paths = glob(datadir + '/*.pkl')
-        # only want full seq_len sized length numbers
-        self.seq_len = seq_len
-        self.length = len(self.paths) // seq_len * seq_len
-        self.idict = {}
-        for i in range(self.length):
-            self.idict[i] = self.paths[i]
-
-        self.input_ids = self.idict.keys()[:-1]
-        self.label_ids = self.idict.keys()[1:]
-
-        # load all tensor into RAM
-        tensors = []
-        for path in tqdm(self.paths, total=self.length, ascii=True):
-            tensor = torch.load(path).numpy()
-            tensors.append(tensor)
-        # pad one at the end of the sequence with first state
-        pad_tensor = torch.load(self.paths[0]).numpy()
-        tensors.append(pad_tensor)
-
-        tensors = np.array(tensors).astype('float32')
-        self.tensors = tensors.reshape((self.length, -1))
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples
-        '''
-        return self.length - self.seq_len
-
-    def __getitem__(self, index):
-        '''
-        Generates one sample of data
-        '''
-        # Load data and get label
-        X = self.tensors[index]
-        y = self.tensors[index+1]
-        X = torch.from_numpy(X)
-        y = torch.from_numpy(y)
-        return X, y
-
-
-class S2FDataset(data.Dataset):
-    '''
-    Sequence of Frames to one frame dataset.
-    '''
-
-    def __init__(self, datadir, seq_len):
-        '''
-        Initialization.
-
-        Args:
-            datadir: directory of serialized tensors
-            seq_len: timestep length of tensors
-        '''
-        self.paths = glob(datadir + '/*.pkl')
-        path_num = len(self.paths)
-        n_batches = path_num // seq_len
-        # only want full size batches
-        self.paths = self.paths[: n_batches * seq_len]
-
-        self.seq_len = seq_len
-        self.length = len(self.paths) // seq_len * seq_len
-        self.idict = {}
-        for i in range(self.length):
-            self.idict[i] = self.paths[i]
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples.
-        '''
-        return self.length - self.seq_len
-
-    def __getitem__(self, index):
-        '''
-        Generates one sample of data.
-        '''
-        # Load data and get label
-        X = []
-        for i in range(self.seq_len):
-            x = torch.load(self.idict[index + i]).numpy()
-            X.append(x)
-        X = np.array(X).astype('float32')
-        X = X.reshape((len(X), -1))
-        X = torch.from_numpy(X)
-        y = torch.load(self.idict[index + self.seq_len]).type(torch.float32)
-
-        # flatten y to be the same dimention as X
-        y = y.flatten()
-        # print('#'*20)
-        # print(f'X shape is: {X.shape}')  # <- X is ok
-        # print('#' * 20)
-
-        return X, y
-
-
-class S2FDatasetRAM(data.Dataset):
-    '''
-    Sequence of Frames to one frame dataset.
-    Load all data into RAM at once.
-    '''
-
-    def __init__(self, datadir, seq_len):
-        '''
-        Initialization.
-
-        Args:
-            datadir: directory of serialized tensors
-            seq_len: timestep length of tensors
-            batch_size: divide a sequence to n_batch sequences
-        '''
-        self.paths = glob(datadir + '/*.pkl')
-        path_num = len(self.paths)
-        full_seq = path_num // seq_len * seq_len
-        # only want full size batches
-        self.paths = self.paths[: full_seq]
-
-        self.seq_len = seq_len
-        # total length of all tensors
-        self.length = len(self.paths)
-
-        # load all tensor into RAM
-        tensors = []
-        for path in tqdm(self.paths, total=self.length, ascii=True):
-            tensor = torch.load(path).numpy()
-            tensors.append(tensor)
-        tensors = np.array(tensors).astype('float32')
-        self.tensors = tensors.reshape((self.length, -1))
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples.
-        '''
-        return self.length - self.seq_len
-
-    def __getitem__(self, index):
-        '''
-        Generates one sample of data.
-        '''
-        X = self.tensors[index: index+self.seq_len]
-        y = self.tensors[index+self.seq_len]
-        X = torch.from_numpy(X)
-        y = torch.from_numpy(y)
-
-        return X, y
-
-
-# Classification dataset
-# TODO: Please clean unused variables
-class SnapshotClassificationDataset(data.Dataset):
-    '''
-    A dataset that divide time snapshots into n classes, where n is the number
-    of snapshots per day(default) or other specified number. For example, the
-    several snapshots (15min) can be recognized as one class of hour X.
-    '''
-    def __init__(self, datadir: str):
-        '''
-        Initialization method.
-
-        Args:
-            datadir: directory containing `tensors` and `viz_images` folder
-        '''
-        self.datadir = datadir
-        self.paths = glob(self.datadir + '/*.pkl')
-        self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples.
-        '''
-        return len(self.paths)
-
-    def __getitem__(self, index):
-        '''
-         Generates one sample of data.
-         Decide class of the sample on the fly.
-        '''
-        path = self.paths[index]
-        X = torch.load(path)
-        y = decide_label(path)
-
-        return X, y
-
-
-# TODO: Please clean unused variables
-class SnapshotClassificationDatasetRAM(data.Dataset):
-    '''
-    The same dataset as SnapshotClassificationDataset, but load all data into
-    memory.
-    '''
-
-    def __init__(self, datadir: str):
-        '''
-        Initialization method.
-
-        Args:
-            datadir: directory containing `tensors` and `viz_images` folder
-        Explaination:
-            The n_classes is actually fixed. If the time unit of tensor
-            generation is 15min, then there would be 96 classes. The reason
-            why n_classes is still provided as an argument is to double check
-            the user knows (or, remembers) what he/she is doing.
-        '''
-        self.datadir = datadir
-
-        # capture time unit (10min, 15min, etc) from dir string
-        dir_pattern = re.compile('(?<=_)\d+(?=min)')
-        interval = int(dir_pattern.findall(self.datadir)[0])
-
-        # Patterns to extract key number from tensor path, which is used to
-        # determine the class of that tensor. This is possible thanks to
-        # naming rule of tensors.
-        self.paths = glob(self.datadir + '/*.pkl')
-        assert len(self.paths) != 0, 'glob error!'
-        self.pattern = re.compile('(?<=-)\d+(?=.pkl)')
-
-        # load tensor and labels into RAM
-        self.Xs = []
-        self.ys = []
-        for path in tqdm(self.paths, total=len(self.paths), ascii=True):
-            X = torch.load(path).type(torch.FloatTensor)
-            X = X.permute(2, 1, 0)
-            y = decide_label(path)
-            self.Xs.append(X)
-            self.ys.append(y)
-
-    def __len__(self):
-        '''
-        Denotes the total number of samples.
-        '''
-        return len(self.paths)
-
-    def __getitem__(self, index):
-        '''
-         Generates one sample of data.
-        '''
-        X = self.Xs[index]
-        y = self.ys[index]
-
-        return X, y
 
 
 # helper functions
@@ -709,11 +413,76 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     return model, (tl, vl)
 
 
-# run functions of this module
-def run_lstm_training(model_name, epochs, sl=12, bs=64,
-                      lr=0.001, hd=256, nl=2, dp=0.5, device='cuda:0'):
+def train_encoder(model, optimizer, criterion, n_epochs,
+                  loader, hyps, device='cuda:0', show_every_n_batches=100):
     '''
-    Main function of lstm training.
+    Train an auto encoder with the given hyperparameters.
+
+    Args:
+        model:              The PyTorch Module that holds the neural network
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        loader:             Training data loader
+        hyps:               A dict containing hyperparameters
+        device:             Training device
+        show_every_batches: Display loss every this number of time steps
+    Returns:
+        A trained model. The best model will also be saved locally.
+    '''
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training auto encoder started at {time.ctime()}')
+    # validation constants
+    valid_loss_min = np.inf
+
+    losses = []
+
+    model.train()
+
+    print("Training for %d epoch(s)..." % n_epochs)
+    for epoch_i in range(1, n_epochs + 1):
+
+        for data, label in loader:
+
+            # forward, back prop
+            if TRAIN_ON_MULTI_GPUS:
+                data, label = data.cuda(), label.cuda()
+            elif torch.cuda.is_available():
+                data, label = data.to(device), label.to(device)
+
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, label)
+            loss.backward()
+            optimizer.step()
+
+            # record loss
+            losses.append(loss.item() * data.size(0))
+
+        avg_loss = np.mean(losses)
+        # printing loss stats
+        print(
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.4f}', flush=True)
+
+        torch.save(model.state_dict(),
+                   f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-dp{hyps["dp"]}.pt')
+        # clear
+        losses = []
+
+    # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    return model
+
+
+# run functions of this module
+def run_recursive_training(model_name, epochs, sl=12, bs=64,
+                           lr=0.001, hd=256, nl=2, dp=0.5, device='cuda:0'):
+    '''
+    Main function of RNNs training.
 
     Args:
         model_name: model name
@@ -757,7 +526,7 @@ def run_lstm_training(model_name, epochs, sl=12, bs=64,
         'dp': drop_prob
     }
 
-    data_dir = 'dataset/2018_15min/tensors'
+    data_dir = 'data/2018_15min/tensors'
     data_set = S2FDatasetRAM(data_dir, sequence_length)
 
     # split dataset for training and validation
@@ -853,7 +622,7 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
     }
 
     # Initialize data loaders
-    data_dir = 'dataset/2018_15min/tensors'
+    data_dir = 'data/2018_15min/tensors'
 
     # LSTM data loader
     data_set = SnapshotClassificationDatasetRAM(data_dir)
@@ -915,8 +684,76 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
     plt.show()
 
 
+def run_encoder_training(model_name, epochs, hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+    '''
+    Main function of auto encoder.
+
+    Args:
+        model_name: model name
+        epochs: number of epochs to train
+        hd: hidden dim
+        lr: learning_rate
+        bs: batch_size
+        dp: drop_prob
+    '''
+    # Training parameters
+    epochs = epochs
+    learning_rate = 0.001
+    batch_size = bs
+
+    # Model parameters
+    input_size = 69 * 69 * 3  # <- don't change this value
+    output_size = input_size
+    drop_prob = 0.5
+    hidden_dim = hd
+
+    # wrap essential info into dictionary:
+    hyps = {
+        'is': input_size,
+        'os': output_size,
+        'mn': model_name,
+        'hd': hidden_dim,
+        'bs': batch_size,
+        'lr': learning_rate,
+        'dp': drop_prob
+    }
+
+    # Initialize data loaders
+    data_dir = 'data/2018_15min/tensors'
+
+    # LSTM data loader
+    data_set = EncoderDatasetRAM(data_dir)
+
+    loader = DataLoader(data_set,
+                        batch_size=batch_size, num_workers=0, drop_last=True)
+
+    # initialize model
+    model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
+
+    # model training device
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+    elif torch.cuda.is_available():
+        model = model.to(device)
+    else:
+        print('Training on CPU, very long training time is expectable.')
+
+    # optimizer and criterion(loss function)
+    if TRAIN_ON_MULTI_GPUS:
+        optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.MSELoss()
+
+    # start training
+    trained_model = train_encoder(model, optimizer, criterion, epochs, loader, hyps)
+
+    return trained_model
+
+
 if __name__ == '__main__':
 
-    run_lstm_training('VanillaStateGRU', 5, sl=24, bs=128,
-                      lr=0.001, hd=1024, nl=2, dp=0.5, device='cuda:1')
+    # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001, hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
+
+    run_encoder_training('AutoEncoder', 100, lr=0.01, hd=512)
