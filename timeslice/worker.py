@@ -54,6 +54,8 @@ colmap = {
 def gen_pnf_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
+    `pnf` is the first kind of representation. The other representation is `od`
+
     Args:
         table: pandas tabular data
         bounds: time bound tuple,
@@ -109,6 +111,8 @@ def gen_pnf_layers(table, bound):
 def gen_pnf_image(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
+    NOTE:Deprecated.
+
     Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
@@ -160,6 +164,8 @@ def gen_pnf_image(p_layer, n_layer, f_layer):
 def gen_pnf_tensor(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
+    NOTE:Deprecated.
+
     Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
@@ -217,6 +223,7 @@ def create_adjacency_matrix(arr, am, ly: int):
     Fill in values into the provided am(adjacency matrxi) with the connection
     info numpy array. Copy a list here for performance
     (dict is not supported even just plainly put within jit decorated function)
+
     Args:
         arr: OD information, 2d numpy array
         am: adjacency matrix, zero 2d numpy array
@@ -254,6 +261,7 @@ def create_adjacency_matrix(arr, am, ly: int):
 def gen_pnf_image_fast(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
+
     Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
@@ -289,6 +297,7 @@ def gen_pnf_image_fast(p_layer, n_layer, f_layer):
 def gen_pnf_tensor_fast(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
+
     Args:
         p_layer: matrix of past layer, pandas dataframe
         n_layer: matrix of now layer, pandas dataframe
@@ -318,6 +327,84 @@ def gen_pnf_tensor_fast(p_layer, n_layer, f_layer):
     return snapshot
 
 
+def gen_od_subtable(table, bound):
+    '''
+    Project O(rigin)D(estination) layer table data.
+    `od` is the second kind of representation. The other representation is `pnf`
+
+    Args:
+        table: pandas tabular data
+        bounds: time bound tuple,
+                for example: (left_timestring, right_timestring)
+    Return:
+        OD subtable, a subtable of input table.
+    '''
+    # left bound and right bound of time interval
+    assert type(bound) == tuple
+    left = bound[0]
+    right = bound[1]
+
+    snap = table.loc[
+        ((table['tpep_pickup_datetime'] >= left) &
+         (table['tpep_pickup_datetime'] < right)) |
+        ((table['tpep_dropoff_datetime'] >= left) &
+         (table['tpep_dropoff_datetime'] < right))]
+
+    return snap
+
+
+def gen_od_image_fast(od_sub):
+    '''
+    Generate an image using given matriX.
+
+    Args:
+        od_sub: subtable for od matrix creation
+    Returns:
+        A PIL image
+    '''
+    # convert pandas dataframe to numpy array, only get OD columns
+    od_sub = od_sub.to_numpy()[1:, :]
+
+    # create a snapshot
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 1], dtype='int16')
+
+    # od matrix
+    snapshot = create_adjacency_matrix(od_sub, snapshot, 0)
+
+    # simple normalize
+    snapshot *= (255 // snapshot.max())
+    snapshot = snapshot.astype('uint8')
+    image = Image.fromarray(snapshot)
+
+    return image
+
+
+def gen_od_tensor_fast(od_sub):
+    '''
+    Generate an image using given matriX.
+
+    Args:
+        od_sub: subtable for od matrix creation
+    Returns:
+        A PIL image
+    '''
+    # convert pandas dataframe to numpy array, only get OD columns
+    od_sub = od_sub.to_numpy()[1:, :]
+
+    # create a snapshot
+    snapshot = np.zeros(
+        [Worker.image_size, Worker.image_size, 1], dtype='int64')
+
+    # od matrix
+    snapshot = create_adjacency_matrix(od_sub, snapshot, 0)
+
+    # conver to tensor
+    snapshot = torch.from_numpy(snapshot)
+
+    return snapshot
+
+
 def create_dir(directory: str):
     '''
     Helper function to create directory
@@ -333,6 +420,7 @@ def create_dir(directory: str):
         raise OSError
 
 
+# The working class. :)
 class Worker:
     '''
     Worker class, generate tensors.
@@ -356,6 +444,7 @@ class Worker:
     def __init__(self, pid: int, table, rule, destin: str, viz: bool):
         '''
         Init method for Worker.
+
         Args:
             pid:    process id
             destin: String, indicating where to store the generated tensors and
@@ -395,6 +484,7 @@ class Worker:
         '''
         Remove rows in the table(pandas dataframe) if either of its location ID
         is not in Worker.mp
+
         Args:
             table: pandas DataFrame
         Returns:
@@ -423,7 +513,7 @@ class Worker:
 
         return table
 
-    def generate(self):
+    def generate_pnf(self):
         '''
         Generate tensors given the data source and processing rules.
 
@@ -476,6 +566,64 @@ class Worker:
             if self.viz:
 
                 image = gen_pnf_image_fast(p_layer, n_layer, f_layer)
+
+                # resize to x50
+                image = image.resize((345, 345))
+                image.save(image_path)
+
+    def generate_od(self):
+        '''
+        Generate tensors given the data source and processing rules.
+
+        Args:
+            table: pandas.DataFrame object, one sub table from the
+                   source.table_pool dictionary.
+            pid: a number indicating the generation process id
+
+        ***************************| benchmark |*****************************
+        | A full run of entire year data (yellow regions) was approximately |
+        | 100 minutes, which was slow. Now it needs less than 10 minutes.   |
+        *********************************************************************
+        '''
+        for i, bound in enumerate(self.rule.fragments):
+
+            # print(f'Generating tensor No.{i} : {bound}')
+            # generate three layers
+            od_sub = gen_od_subtable(self.table, bound)
+            # print(table.head())
+
+            # combine three layers to one tensor(image)
+            tensor = gen_od_tensor_fast(od_sub)
+
+            # start and end bound for entire sub interval
+            stp = self.rule.stp
+            etp = self.rule.etp
+
+            # left bound and right bound of ONE time slice of the time interval
+            lbd = bound[0]
+            rbd = bound[1]
+
+            # tensor save path
+            tensor_path = os.path.abspath(
+                self.tensor_dir +
+                f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.pkl'.replace(
+                    ' ', '_').replace(':', ';')
+            )
+
+            # image save path
+            image_path = os.path.abspath(
+                self.visual_dir +
+                f'/{lbd}-{rbd}--{stp}-{etp}--p{self.pid}-{i}.jpg'.replace(
+                    ' ', '_').replace(':', ';')
+            )
+
+            # save method 1 => time for 1 day is: 7m 47s
+            torch.save(tensor, tensor_path)
+
+            # if viz is true, then save images to separate folder
+            if self.viz:
+
+                image = gen_od_image_fast(od_sub)
 
                 # resize to x50
                 image = image.resize((345, 345))
