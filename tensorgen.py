@@ -46,7 +46,9 @@ def f(worker):
         worker: a process object
     '''
     print(f'Generating worker {worker.pid}..')
-    worker.generate()
+    # For now manually change generate function.
+    # worker.generate_pnf()
+    worker.generate_od()
 
 
 # main entry point of this module
@@ -87,7 +89,7 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
             wp = worker.Worker(k, tables[k],
                                rule.TimeSlice(
                                *list(map(str, sub_ranges[k])), freq=freq),
-                               f'dataset/{DIRNAME}_{freq}', True
+                               f'{DIRNAME}/{freq}', True
                                )
 
             workers.append(wp)
@@ -116,7 +118,7 @@ def run(src: str, stp: str, etp: str, destdir: str, freqs: list):
 if __name__ == '__main__':
 
     run('cleaned_small_yellow_2017_full', '2017-01-01 00:00:00',
-        '2018-01-01 00:00:00', '2017', ['12min', '15min'])
+        '2018-01-01 00:00:00', 'data/2017', ['12min', '15min'])
 
     run('cleaned_small_yellow_2018_full', '2018-01-01 00:00:00',
-        '2019-01-01 00:00:00', '2018', ['12min', '15min'])
+        '2019-01-01 00:00:00', 'data/2018', ['12min', '15min'])
