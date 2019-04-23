@@ -240,6 +240,55 @@ class VanillaStateGRU(nn.Module):
         return hidden
 
 
+class AutoEncoder(nn.Module):
+    '''
+    An autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, hidden_dim=512,
+                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size
+            hidden_dim:     hidden size
+            drop_prob:      drop out rate
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super().__init__()
+        self.output_size = output_size
+        self.hidden_dim = hidden_dim
+        self.drop_prob = drop_prob
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define the layers
+        self.encoder = nn.Linear(input_size, hidden_dim)
+        self.dropout = nn.Dropout(self.drop_prob)
+        self.decoder = nn.Linear(hidden_dim, self.output_size)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector (flattened)
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        mid = F.relu(self.encoder(x))
+        out = torch.sigmoid(self.decoder(mid))
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
 # TODO: finish this model
 class EmbedStateRNN(nn.Module):
     '''
