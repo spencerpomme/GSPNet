@@ -383,8 +383,7 @@ class EncoderDatasetRAM(data.Dataset):
         Generates one sample of data
         '''
         # Load data and get label
-        X = self.tensors[index]
-        y = self.tensors[index]
-        X = torch.from_numpy(X)
-        y = torch.from_numpy(y)
+        tensor = self.tensors[index]
+        X = torch.from_numpy(tensor)
+        y = torch.from_numpy(tensor)
         return X, y
