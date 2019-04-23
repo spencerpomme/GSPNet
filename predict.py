@@ -44,6 +44,7 @@ from tqdm import tqdm
 
 import models
 from models import *
+from datasets import *
 
 # Environment global variable
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
