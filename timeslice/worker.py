@@ -46,12 +46,12 @@ colmap = {
 }
 
 # helper functions
-# Function gen_snap_layers is hard to optimize for the slicing part depends
+# Function gen_pnf_layers is hard to optimize for the slicing part depends
 # heavily on timestamp based selection. This functionality would be rather
 # cumbersome if to be done in numpy.
 
 
-def gen_snap_layers(table, bound):
+def gen_pnf_layers(table, bound):
     '''
     Generate Past layer, Now layer and Future layer for one snapshot.
     Args:
@@ -106,7 +106,7 @@ def gen_snap_layers(table, bound):
     return p_layer, n_layer, f_layer
 
 
-def gen_image(p_layer, n_layer, f_layer):
+def gen_pnf_image(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
     Args:
@@ -157,7 +157,7 @@ def gen_image(p_layer, n_layer, f_layer):
     return image
 
 
-def gen_tensor(p_layer, n_layer, f_layer):
+def gen_pnf_tensor(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
     Args:
@@ -251,7 +251,7 @@ def create_adjacency_matrix(arr, am, ly: int):
 
 
 # numba enhanced version
-def gen_image_fast(p_layer, n_layer, f_layer):
+def gen_pnf_image_fast(p_layer, n_layer, f_layer):
     '''
     Generate an image using given matrices.
     Args:
@@ -272,10 +272,8 @@ def gen_image_fast(p_layer, n_layer, f_layer):
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
-
     # past-Green: 1
     snapshot = create_adjacency_matrix(n_layer, snapshot, 1)
-
     # now-Blue: 2
     snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
 
@@ -288,7 +286,7 @@ def gen_image_fast(p_layer, n_layer, f_layer):
 
 
 # numba enhanced version
-def gen_tensor_fast(p_layer, n_layer, f_layer):
+def gen_pnf_tensor_fast(p_layer, n_layer, f_layer):
     '''
     Generate a tensor using given matrices.
     Args:
@@ -309,10 +307,8 @@ def gen_tensor_fast(p_layer, n_layer, f_layer):
 
     # future-Red: 0
     snapshot = create_adjacency_matrix(p_layer, snapshot, 0)
-
     # past-Green: 1
     snapshot = create_adjacency_matrix(n_layer, snapshot, 1)
-
     # now-Blue: 2
     snapshot = create_adjacency_matrix(f_layer, snapshot, 2)
 
@@ -445,11 +441,11 @@ class Worker:
 
             # print(f'Generating tensor No.{i} : {bound}')
             # generate three layers
-            p_layer, n_layer, f_layer = gen_snap_layers(self.table, bound)
+            p_layer, n_layer, f_layer = gen_pnf_layers(self.table, bound)
             # print(table.head())
 
             # combine three layers to one tensor(image)
-            tensor = gen_tensor_fast(p_layer, n_layer, f_layer)
+            tensor = gen_pnf_tensor_fast(p_layer, n_layer, f_layer)
 
             # start and end bound for entire sub interval
             stp = self.rule.stp
@@ -479,7 +475,7 @@ class Worker:
             # if viz is true, then save images to separate folder
             if self.viz:
 
-                image = gen_image_fast(p_layer, n_layer, f_layer)
+                image = gen_pnf_image_fast(p_layer, n_layer, f_layer)
 
                 # resize to x50
                 image = image.resize((345, 345))
