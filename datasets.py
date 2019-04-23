@@ -35,7 +35,8 @@ import torch
 
 from torch import nn, optim
 from torch.utils import data
-from torch.utils.data import TensorDataset, DataLoader, SubsetRandomSampler, SequentialSampler
+from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import SubsetRandomSampler, SequentialSampler
 from glob import iglob, glob
 from matplotlib import pyplot as plt
 from matplotlib.legend_handler import HandlerLine2D
