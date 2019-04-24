@@ -237,7 +237,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnAutoEncoder-is4761-os4761-bs128-lr0.1-hd512.pt'
+    model_path = 'trained_models/mnAutoEncoder-is4761-os4761-bs128-lr0.1-hd1024_mse.pt'
     data_path = 'data/2018/15min/tensors'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 14, 'cpu')
