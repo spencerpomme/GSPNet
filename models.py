@@ -267,7 +267,8 @@ class AutoEncoder(nn.Module):
 
         # define the layers
         self.encoder = nn.Linear(input_size, hidden_dim)
-        self.dropout = nn.Dropout(self.drop_prob)
+        self.l1 = nn.Linear(hidden_dim, hidden_dim//2)
+        self.l2 = nn.Linear(hidden_dim//2, hidden_dim)
         self.decoder = nn.Linear(hidden_dim, self.output_size)
 
     def forward(self, x):
@@ -280,8 +281,10 @@ class AutoEncoder(nn.Module):
             out:    output of current time step
         '''
         batch_size = x.size(0)
-        mid = F.relu(self.encoder(x))
-        out = self.decoder(mid)
+        x = F.relu(self.encoder(x))
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
+        out = self.decoder(x)
 
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
