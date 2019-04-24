@@ -371,11 +371,13 @@ def gen_od_image_fast(od_sub):
 
     # od matrix
     snapshot = create_adjacency_matrix(od_sub, snapshot, 0)
+    # squeeze dimension for od representation, such that image can be generated
+    snapshot = snapshot.squeeze()
 
     # simple normalize
     snapshot *= (255 // snapshot.max())
     snapshot = snapshot.astype('uint8')
-    image = Image.fromarray(snapshot)
+    image = Image.fromarray(snapshot, mode='L')
 
     return image
 
