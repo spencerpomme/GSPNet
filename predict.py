@@ -1,4 +1,3 @@
-import torch.nn.functional as F
 '''
 Copyright <2019> <COPYRIGHT Pingcheng Zhang>
 
@@ -32,6 +31,7 @@ import os
 import re
 import time
 import torch
+import torch.nn.functional as F
 
 from PIL import Image
 from torch import nn, optim
