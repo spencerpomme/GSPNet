@@ -110,6 +110,215 @@ def batch_dataset(datadir, seq_len):
     return data_loader
 
 
+# training function of CNN classification
+def train_classifier(model, optimizer, criterion, n_epochs,
+                     train_loader, valid_loader, hyps,
+                     stop_criterion=20, device='cuda:0',
+                     show_every_n_batches=100):
+    '''
+    Train a CNN classifier with the given hyperparameters.
+
+    Args:
+        model:              The PyTorch Module that holds the neural network
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        train_loader:       Training data loader
+        valid_loader:       Validation data loader
+        hyps:               A dict containing hyperparameters
+        stop_criterion:     Early stop variable
+        device:             Training device
+        show_every_batches: Display loss every this number of time steps
+    Returns:
+        A trained model. The best model will also be saved locally.
+    '''
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training on device {device} started at {time.ctime()}')
+    # validation constants
+    early_stop_count = 0
+    valid_loss_min = np.inf
+
+    train_losses = []
+    valid_losses = []
+
+    # for plot training loss and validation loss
+    tl = []
+    vl = []
+
+    model.train()
+
+    print("Training for %d epoch(s)..." % n_epochs)
+    for epoch_i in range(1, n_epochs + 1):
+
+        # early stop mechanism:
+        if early_stop_count >= stop_criterion:
+            print(f'Early stop triggered after {stop_criterion} epochs.')
+            break
+
+        for data, label in train_loader:
+
+            # forward, back prop
+            if TRAIN_ON_MULTI_GPUS:
+                data, label = data.cuda(), label.cuda()
+            elif torch.cuda.is_available():
+                data, label = data.to(device), label.to(device)
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, label)
+            loss.backward()
+            optimizer.step()
+
+            # record loss
+            train_losses.append(loss.item() * data.size(0))
+
+            model.eval()
+
+        for v_data, v_label in valid_loader:
+
+            v_data, v_label = v_data.cuda(), v_label.cuda()
+
+            v_output = model(v_data)
+            val_loss = criterion(v_output, v_label)
+
+            valid_losses.append(val_loss.item() * data.size(0))
+
+        model.train()
+        avg_val_loss = np.mean(valid_losses)
+        avg_tra_loss = np.mean(train_losses)
+
+        tl.append(avg_tra_loss)
+        vl.append(avg_val_loss)
+        # printing loss stats
+        print(
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
+            flush=True)
+
+        # decide whether to save model or not:
+        if avg_val_loss < valid_loss_min:
+
+            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. \
+                    Saving...', flush=True)
+
+            torch.save(model.state_dict(),
+                       f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
+
+            valid_loss_min = avg_val_loss
+            early_stop_count = 0
+
+        else:
+            early_stop_count += 1
+
+        # clear
+        train_losses = []
+        valid_losses = []
+
+    # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    return model, (tl, vl)
+
+
+def run_classifier_training(model_name, epochs, nc, vs, rs,
+                            lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+    '''
+    Main function of cnn classifier training.
+
+    Args:
+        model_name: model name
+        epochs: number of epochs to train
+        nc: number of classes
+        vs: validation size, proportion of validation data set
+        rs: random seed
+        lr: learning_rate
+        bs: batch_size
+        dp: drop_prob
+    '''
+    # Training parameters
+    epochs = epochs
+    learning_rate = 0.001
+    batch_size = bs
+
+    # Model parameters
+    input_size = 69 * 69 * 3  # <- don't change this value
+    drop_prob = 0.5
+    # Show stats for every n number of batches
+    senb = 5000
+
+    # wrap essential info into dictionary:
+    hyps = {
+        'mn': model_name,
+        'bs': batch_size,
+        'lr': learning_rate,
+        'nc': nc,
+        'dp': drop_prob
+    }
+
+    # Initialize data loaders
+    data_dir = 'data/2018_15min/tensors'
+
+    # LSTM data loader
+    data_set = SnapshotClassificationDatasetRAM(data_dir)
+
+    # split data for training and validation
+    num_train = len(data_set)
+    indices = list(range(num_train))
+    split = int(np.floor(vs * num_train))
+
+    # shuffle
+    np.random.seed(rs)
+    np.random.shuffle(indices)
+
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SubsetRandomSampler(train_idx)
+    valid_sampler = SubsetRandomSampler(valid_idx)
+
+    train_loader = DataLoader(data_set, sampler=train_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
+
+    valid_loader = DataLoader(data_set, sampler=valid_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
+
+    # initialize model
+    model = models.__dict__[model_name](n_classes=nc)
+
+    # model training device
+    if TRAIN_ON_MULTI_GPUS:
+        model = nn.DataParallel(model).cuda()
+    elif torch.cuda.is_available():
+        model = model.to(device)
+    else:
+        print('Training on CPU, very long training time is expectable.')
+
+    # optimizer and criterion(loss function)
+    if TRAIN_ON_MULTI_GPUS:
+        optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
+    else:
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    criterion = nn.CrossEntropyLoss()
+
+    # start training
+    trained_model, tlvl = train_classifier(model, optimizer, criterion, epochs,
+                                           train_loader, valid_loader, hyps)
+
+    # loss plot
+    tl, vl = tlvl
+    x = np.arange(len(tl))
+    # for model 3 of classification only
+    x, tl, vl = x[1:], tl[1:], vl[1:]
+    train_curve, = plt.plot(x, tl, 'r-', label='train loss')
+    valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
+    plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
+
+    plt.savefig(
+        'trained_models' +
+        f'/mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
+    )
+    plt.show()
+
+
 def forward_back_prop(model, optimizer, criterion, inp, target, hidden, clip):
     """
     Forward and backward propagation on the neural network.
@@ -304,181 +513,6 @@ def train_recurrent(model, batch_size, optimizer, criterion,
     return model, (tl, vl)
 
 
-# training function of CNN classification
-def train_classifier(model, optimizer, criterion, n_epochs,
-                     train_loader, valid_loader, hyps,
-                     stop_criterion=20, device='cuda:0',
-                     show_every_n_batches=100):
-    '''
-    Train a CNN classifier with the given hyperparameters.
-
-    Args:
-        model:              The PyTorch Module that holds the neural network
-        optimizer:          The PyTorch optimizer for the neural network
-        criterion:          The PyTorch loss function
-        n_epochs:           Total go through of entire dataset
-        train_loader:       Training data loader
-        valid_loader:       Validation data loader
-        hyps:               A dict containing hyperparameters
-        stop_criterion:     Early stop variable
-        device:             Training device
-        show_every_batches: Display loss every this number of time steps
-    Returns:
-        A trained model. The best model will also be saved locally.
-    '''
-    # clear cache
-    torch.cuda.empty_cache()
-    # start timing
-    start = time.time()
-    print(f'Training on device {device} started at {time.ctime()}')
-    # validation constants
-    early_stop_count = 0
-    valid_loss_min = np.inf
-
-    train_losses = []
-    valid_losses = []
-
-    # for plot training loss and validation loss
-    tl = []
-    vl = []
-
-    model.train()
-
-    print("Training for %d epoch(s)..." % n_epochs)
-    for epoch_i in range(1, n_epochs + 1):
-
-        # early stop mechanism:
-        if early_stop_count >= stop_criterion:
-            print(f'Early stop triggered after {stop_criterion} epochs.')
-            break
-
-        for data, label in train_loader:
-
-            # forward, back prop
-            if TRAIN_ON_MULTI_GPUS:
-                data, label = data.cuda(), label.cuda()
-            elif torch.cuda.is_available():
-                data, label = data.to(device), label.to(device)
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, label)
-            loss.backward()
-            optimizer.step()
-
-            # record loss
-            train_losses.append(loss.item() * data.size(0))
-
-            model.eval()
-
-        for v_data, v_label in valid_loader:
-
-            v_data, v_label = v_data.cuda(), v_label.cuda()
-
-            v_output = model(v_data)
-            val_loss = criterion(v_output, v_label)
-
-            valid_losses.append(val_loss.item() * data.size(0))
-
-        model.train()
-        avg_val_loss = np.mean(valid_losses)
-        avg_tra_loss = np.mean(train_losses)
-
-        tl.append(avg_tra_loss)
-        vl.append(avg_val_loss)
-        # printing loss stats
-        print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
-            flush=True)
-
-        # decide whether to save model or not:
-        if avg_val_loss < valid_loss_min:
-
-            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. \
-                    Saving...', flush=True)
-
-            torch.save(model.state_dict(),
-                       f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
-
-            valid_loss_min = avg_val_loss
-            early_stop_count = 0
-
-        else:
-            early_stop_count += 1
-
-        # clear
-        train_losses = []
-        valid_losses = []
-
-    # returns a trained model
-    end = time.time()
-    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
-    return model, (tl, vl)
-
-
-def train_encoder(model, optimizer, criterion, n_epochs,
-                  loader, hyps, device='cuda:0', show_every_n_batches=100):
-    '''
-    Train an auto encoder with the given hyperparameters.
-
-    Args:
-        model:              The PyTorch Module that holds the neural network
-        optimizer:          The PyTorch optimizer for the neural network
-        criterion:          The PyTorch loss function
-        n_epochs:           Total go through of entire dataset
-        loader:             Training data loader
-        hyps:               A dict containing hyperparameters
-        device:             Training device
-        show_every_batches: Display loss every this number of time steps
-    Returns:
-        A trained model. The best model will also be saved locally.
-    '''
-    # clear cache
-    torch.cuda.empty_cache()
-    # start timing
-    start = time.time()
-    print(f'Training on device {device} started at {time.ctime()}')
-    # validation constants
-    valid_loss_min = np.inf
-
-    losses = []
-
-    model.train()
-
-    print("Training for %d epoch(s)..." % n_epochs)
-    for epoch_i in range(1, n_epochs + 1):
-
-        for data, label in loader:
-            # forward, back prop
-            if TRAIN_ON_MULTI_GPUS:
-                data, label = data.cuda(), label.cuda()
-            elif torch.cuda.is_available():
-                data, label = data.to(device), label.to(device)
-
-            optimizer.zero_grad()
-            output = model(data)
-            loss = criterion(output, label)
-            loss.backward()
-            optimizer.step()
-
-            # record loss
-            losses.append(loss.item() * data.size(0))
-
-        avg_loss = np.mean(losses)
-        # printing loss stats
-        print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.4f}', flush=True)
-        # clear
-        losses = []
-
-    torch.save(model.state_dict(), 'trained_models' +
-               f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
-
-    # returns a trained model
-    end = time.time()
-    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
-    return model
-
-
 # run functions of this module
 def run_recursive_training(model_name, epochs, sl=12, bs=64,
                            lr=0.001, hd=256, nl=2, dp=0.5, device='cuda:0'):
@@ -587,105 +621,71 @@ def run_recursive_training(model_name, epochs, sl=12, bs=64,
     plt.show()
 
 
-def run_classifier_training(model_name, epochs, nc, vs, rs,
-                            lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+def train_encoder(model, optimizer, criterion, n_epochs,
+                  loader, hyps, device='cuda:0', show_every_n_batches=100):
     '''
-    Main function of cnn classifier training.
+    Train an auto encoder with the given hyperparameters.
 
     Args:
-        model_name: model name
-        epochs: number of epochs to train
-        nc: number of classes
-        vs: validation size, proportion of validation data set
-        rs: random seed
-        lr: learning_rate
-        bs: batch_size
-        dp: drop_prob
+        model:              The PyTorch Module that holds the neural network
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        loader:             Training data loader
+        hyps:               A dict containing hyperparameters
+        device:             Training device
+        show_every_batches: Display loss every this number of time steps
+    Returns:
+        A trained model. The best model will also be saved locally.
     '''
-    # Training parameters
-    epochs = epochs
-    learning_rate = 0.001
-    batch_size = bs
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training on device {device} started at {time.ctime()}')
+    # validation constants
+    valid_loss_min = np.inf
 
-    # Model parameters
-    input_size = 69 * 69 * 3  # <- don't change this value
-    drop_prob = 0.5
-    # Show stats for every n number of batches
-    senb = 5000
+    losses = []
 
-    # wrap essential info into dictionary:
-    hyps = {
-        'mn': model_name,
-        'bs': batch_size,
-        'lr': learning_rate,
-        'nc': nc,
-        'dp': drop_prob
-    }
+    model.train()
 
-    # Initialize data loaders
-    data_dir = 'data/2018_15min/tensors'
+    print("Training for %d epoch(s)..." % n_epochs)
+    for epoch_i in range(1, n_epochs + 1):
 
-    # LSTM data loader
-    data_set = SnapshotClassificationDatasetRAM(data_dir)
+        for data, label in loader:
+            # forward, back prop
+            if TRAIN_ON_MULTI_GPUS:
+                data, label = data.cuda(), label.cuda()
+            elif torch.cuda.is_available():
+                data, label = data.to(device), label.to(device)
 
-    # split data for training and validation
-    num_train = len(data_set)
-    indices = list(range(num_train))
-    split = int(np.floor(vs * num_train))
+            optimizer.zero_grad()
+            output = model(data)
+            loss = criterion(output, label)
+            loss.backward()
+            optimizer.step()
 
-    # shuffle
-    np.random.seed(rs)
-    np.random.shuffle(indices)
+            # record loss
+            losses.append(loss.item() * data.size(0))
 
-    train_idx, valid_idx = indices[split:], indices[:split]
-    train_sampler = SubsetRandomSampler(train_idx)
-    valid_sampler = SubsetRandomSampler(valid_idx)
+        avg_loss = np.mean(losses)
+        # printing loss stats
+        print(
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.4f}', flush=True)
+        # clear
+        losses = []
 
-    train_loader = DataLoader(data_set, sampler=train_sampler,
-                              batch_size=batch_size, num_workers=0, drop_last=True)
+    torch.save(model.state_dict(), 'trained_models' +
+               f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
 
-    valid_loader = DataLoader(data_set, sampler=valid_sampler,
-                              batch_size=batch_size, num_workers=0, drop_last=True)
-
-    # initialize model
-    model = models.__dict__[model_name](n_classes=nc)
-
-    # model training device
-    if TRAIN_ON_MULTI_GPUS:
-        model = nn.DataParallel(model).cuda()
-    elif torch.cuda.is_available():
-        model = model.to(device)
-    else:
-        print('Training on CPU, very long training time is expectable.')
-
-    # optimizer and criterion(loss function)
-    if TRAIN_ON_MULTI_GPUS:
-        optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
-    else:
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.CrossEntropyLoss()
-
-    # start training
-    trained_model, tlvl = train_classifier(model, optimizer, criterion, epochs,
-                                           train_loader, valid_loader, hyps)
-
-    # loss plot
-    tl, vl = tlvl
-    x = np.arange(len(tl))
-    # for model 3 of classification only
-    x, tl, vl = x[1:], tl[1:], vl[1:]
-    train_curve, = plt.plot(x, tl, 'r-', label='train loss')
-    valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
-    plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
-
-    plt.savefig(
-        'trained_models' +
-        f'/mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
-    )
-    plt.show()
+    # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    return model
 
 
-def run_encoder_training(model_name, epochs,
+def run_encoder_training(model_name, epochs, data_dir,
                          hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
     '''
     Main function of auto encoder.
@@ -693,6 +693,7 @@ def run_encoder_training(model_name, epochs,
     Args:
         model_name: model name
         epochs: number of epochs to train
+        data_dir: location of training data
         hd: hidden dim
         lr: learning_rate
         bs: batch_size
@@ -703,7 +704,7 @@ def run_encoder_training(model_name, epochs,
     batch_size = bs
 
     # Model parameters
-    input_size = 69 * 69 * 3  # <- don't change this value
+    input_size = 69 * 69 * 1  # <- don't change this value
     output_size = input_size
     hidden_dim = hd
 
@@ -718,8 +719,6 @@ def run_encoder_training(model_name, epochs,
     }
 
     # Initialize data loaders
-    data_dir = 'data/2018_15min/tensors'
-
     # LSTM data loader
     data_set = EncoderDatasetRAM(data_dir)
 
@@ -756,5 +755,5 @@ if __name__ == '__main__':
     # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001,
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
-
-    run_encoder_training('AutoEncoder', 40, lr=0.1, hd=256, device='cuda:1')
+    data_dir = 'data/2018/15min/tensors'
+    run_encoder_training('AutoEncoder', 40, data_dir, lr=0.1, hd=512, device='cuda:0')
