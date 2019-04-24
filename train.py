@@ -676,8 +676,8 @@ def train_encoder(model, optimizer, criterion, n_epochs,
         # clear
         losses = []
 
-    torch.save(model.state_dict(), 'trained_models' +
-               f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
+    torch.save(model.state_dict(), 'trained_models' + '/' +
+               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
 
     # returns a trained model
     end = time.time()
@@ -756,4 +756,4 @@ if __name__ == '__main__':
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('AutoEncoder', 40, data_dir, lr=0.1, hd=512, device='cuda:0')
+    run_encoder_training('AutoEncoder', 50, data_dir, lr=0.1, hd=512, device='cuda:0')
