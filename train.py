@@ -738,10 +738,11 @@ def run_encoder_training(model_name, epochs, data_dir,
 
     # optimizer and criterion(loss function)
     if TRAIN_ON_MULTI_GPUS:
-        optimizer = optim.SGD(model.module.parameters(), lr=learning_rate)
+        optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
+    # criterion = dich_mse_loss
 
     # start training
     trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
@@ -756,4 +757,4 @@ if __name__ == '__main__':
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('AutoEncoder', 50, data_dir, lr=0.1, hd=512, device='cuda:0')
+    run_encoder_training('AutoEncoder', 100, data_dir, lr=0.1, hd=1024, device='cuda:0')
