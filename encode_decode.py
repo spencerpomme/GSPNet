@@ -170,7 +170,7 @@ def retrieve_hyps(path: str):
     batch_size_pt = re.compile('(?<=bs)\d*')
     hidden_size_pt = re.compile('(?<=hd)\d*')
     lr_pt = re.compile('(?<=lr)0.\d*')
-    mode_pt = re.compile('(?<=md)[a-z]*')
+    mode_pt = re.compile('(?<=md)[A-Za-z]*')
 
     # create dictionary for information to reconstruct model
     hyps = {
@@ -202,7 +202,7 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
     else:
         device = torch.device('cpu')
 
-    if hyps['mn'] == 'ConvAutoEncoder':
+    if hyps['mn'] == 'ConvAutoEncoder' or hyps['mn'] == 'ConvAutoEncoderShallow':
         model = models.__dict__[hyps['mn']](
             hyps['is'],
             hyps['os'],
@@ -253,7 +253,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs128-lr0.001-hd32-mdod.pt'
-    data_path = 'data/2018/15min/tensors'
+    model_path = 'trained_models/mnConvAutoEncoderShallow-is4761-os4761-bs128-lr0.001-hd32-mdod.pt'
+    data_path = 'data/2018_15min/tensors'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 8, 'cuda:0')
