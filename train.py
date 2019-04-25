@@ -720,13 +720,20 @@ def run_encoder_training(model_name, epochs, data_dir,
 
     # Initialize data loaders
     # LSTM data loader
-    data_set = EncoderDatasetRAM(data_dir)
+    if model_name == 'ConvAutoEncoder':
+        data_set = ConvEncoderDatasetRAM(data_dir)
+    else:
+        data_set = EncoderDatasetRAM(data_dir)
 
     loader = DataLoader(data_set,
                         batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
-    model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
+    if model_name == 'ConvAutoEncoder':
+        model = models.__dict__[model_name](hyps['is'], hyps['os'])
+    else:
+        model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
+    print(model)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -741,7 +748,7 @@ def run_encoder_training(model_name, epochs, data_dir,
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
     # criterion = dich_mse_loss
 
     # start training
@@ -757,4 +764,4 @@ if __name__ == '__main__':
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
     data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('AutoEncoder', 100, data_dir, lr=0.1, hd=1024, device='cuda:0')
+    run_encoder_training('ConvAutoEncoder', 50, data_dir, lr=0.01, hd=32, device='cuda:1')
