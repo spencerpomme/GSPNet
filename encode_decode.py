@@ -170,6 +170,7 @@ def retrieve_hyps(path: str):
     batch_size_pt = re.compile('(?<=bs)\d*')
     hidden_size_pt = re.compile('(?<=hd)\d*')
     lr_pt = re.compile('(?<=lr)0.\d*')
+    mode = re.compile('(?<=md)[a-z]*')
 
     # create dictionary for information to reconstruct model
     hyps = {
@@ -178,7 +179,8 @@ def retrieve_hyps(path: str):
         'os': int(output_size_pt.findall(path)[0]),
         'bs': int(batch_size_pt.findall(path)[0]),
         'hd': int(hidden_size_pt.findall(path)[0]),
-        'lr': float(lr_pt.findall(path)[0])
+        'lr': float(lr_pt.findall(path)[0]),
+        'md': mode.findall(path)[0]
     }
 
     return hyps
@@ -202,11 +204,12 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
 
     if hyps['mn'] == 'ConvAutoEncoder':
         model = models.__dict__[hyps['mn']](
-        hyps['is'],
-        hyps['os'],
-        train_on_gpu=True,
-        device=device
-    )
+            hyps['is'],
+            hyps['os'],
+            train_on_gpu=True,
+            device=device,
+            mode=hyps['md']
+        )
     else:
         model = models.__dict__[hyps['mn']](
             hyps['is'],
@@ -250,7 +253,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs128-lr0.01-hd32.pt'
-    data_path = 'data/2017/15min/tensors'
+    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs128-lr0.001-hd32.pt'
+    data_path = 'data/2018/15min/tensors'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 8, 'cuda:0')
