@@ -292,7 +292,7 @@ class AutoEncoder(nn.Module):
         return out
 
 
-class ConvAutoEncoder(nn.Module):
+class ConvAutoEncoder_origin(nn.Module):
     '''
     A CNN autoencoder model, without any preprocessing to the inputs.
     '''
@@ -302,7 +302,7 @@ class ConvAutoEncoder(nn.Module):
         Auto encoder initialization.
 
         Args:
-            input_size:     dimention of state vector (flattened 3d tensor)
+            input_size:     dimention of state vector
             output_size:    the same shape of input_size
             train_on_gpu:   whether use GPU or not
             device:         where to put the model
@@ -332,6 +332,64 @@ class ConvAutoEncoder(nn.Module):
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv_t1(x))
         out = self.conv_t2(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
+class ConvAutoEncoder(nn.Module):
+    '''
+    A CNN autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size
+            mode:           either `od`(greyscale) or `pnf`(rgb)
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super(ConvAutoEncoder, self).__init__()
+        self.output_size = output_size
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define encode and decode layers
+        if mode == 'od':
+            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)             # od mode
+            self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)  # pnf mode
+        elif mode == 'pnf':
+            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)             # od mode
+            self.t_conv1 = nn.ConvTranspose2d(16, 3, 7, stride=2)  # pnf mode
+
+        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(4, 2, 4, stride=2, padding=1)
+        self.t_conv3 = nn.ConvTranspose2d(2, 4, 2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(4, 16, 2, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.t_conv3(x))
+        x = F.relu(self.t_conv2(x))
+        out = self.t_conv1(x)
 
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
