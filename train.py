@@ -126,10 +126,8 @@ def check_encoder_dim(mode: str, model, dataset):
     iterator = iter(loader)
     X, y = iterator.next()
     if mode == 'od':
-        print(X.shape, X.size(1))
         assert X.size(1) == 1, f'Mode `od`: X expect channel size 1 but get {X.size(1)}.'
     elif mode == 'pnf':
-        print(X.shape, X.size(1))
         assert X.size(1) == 3, f'Mode `pnf`: X expect channel size 3 but get {X.size(1)}'
 
 
@@ -749,7 +747,7 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
 
     # Initialize data loaders
     # LSTM data loader
-    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoder_shallow':
+    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoderShallow':
         data_set = ConvEncoderDatasetRAM(data_dir)
     else:
         data_set = EncoderDatasetRAM(data_dir)
@@ -758,7 +756,7 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
                         batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
-    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoder_shallow':
+    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoderShallow':
         model = models.__dict__[model_name](hyps['is'], hyps['os'], mode=hyps['md'])
     else:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
@@ -796,6 +794,6 @@ if __name__ == '__main__':
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('ConvAutoEncoder_shallow', 20, data_dir,
-                         mode='od', lr=0.001, hd=32, device='cuda:1')
+    data_dir = 'data/2018_15min/tensors'
+    run_encoder_training('ConvAutoEncoderShallow', 30, data_dir,
+                         mode='pnf', lr=0.001, hd=32, device='cuda:1')
