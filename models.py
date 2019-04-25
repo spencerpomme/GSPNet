@@ -403,7 +403,6 @@ class ConvAutoEncoder(nn.Module):
         self.conv3 = nn.Conv2d(4, 2, 4, stride=2, padding=1)
         self.t_conv3 = nn.ConvTranspose2d(2, 4, 2, stride=2)
         self.t_conv2 = nn.ConvTranspose2d(4, 16, 2, stride=2)
-        self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)
 
     def forward(self, x):
         '''
@@ -421,6 +420,8 @@ class ConvAutoEncoder(nn.Module):
         x = F.relu(self.t_conv3(x))
         x = F.relu(self.t_conv2(x))
         out = self.t_conv1(x)
+
+        print(f'out.shape --> {out.shape}')
 
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
