@@ -110,6 +110,27 @@ def batch_dataset(datadir, seq_len):
     return data_loader
 
 
+def check_encoder_dim(mode: str, model, dataset):
+    '''
+    Check whether the convolutional autoencoder architecture matches data dimension.
+
+    Args:
+        mode: `pnf` or `od` mode
+        model: convencoder model instance
+        dataset: dataset object
+    Returns:
+        if_match: bool
+    '''
+    loader = DataLoader(dataset,
+                        batch_size=1, num_workers=0, drop_last=True)
+    iterator = iter(loader)
+    X, y = iterator.next()
+    if mode == 'od':
+        assert X.size(1) == 1, f'Mode `od`: X expect channel size 1 but get {X.size(1)}.'
+    elif mode == 'pnf':
+        assert X.size(1) == 3, f'Mode `pnf`: X expect channel size 3 but get {X.size(1)}'
+
+
 # training function of CNN classification
 def train_classifier(model, optimizer, criterion, n_epochs,
                      train_loader, valid_loader, hyps,
@@ -677,7 +698,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
         losses = []
 
     torch.save(model.state_dict(), 'trained_models' + '/' +
-               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}.pt')
+               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
 
     # returns a trained model
     end = time.time()
@@ -685,7 +706,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
     return model
 
 
-def run_encoder_training(model_name, epochs, data_dir,
+def run_encoder_training(model_name, epochs, data_dir, mode='od',
                          hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
     '''
     Main function of auto encoder.
@@ -704,7 +725,12 @@ def run_encoder_training(model_name, epochs, data_dir,
     batch_size = bs
 
     # Model parameters
-    input_size = 69 * 69 * 1  # <- don't change this value
+    if mode == 'od':
+        input_size = 69 * 69 * 1
+    elif mode == 'pnf':
+        input_size = 69 * 69 * 3
+    else:
+        raise ValueError('Only `od` and `pnf` are supported.')
     output_size = input_size
     hidden_dim = hd
 
@@ -716,6 +742,7 @@ def run_encoder_training(model_name, epochs, data_dir,
         'hd': hidden_dim,
         'bs': batch_size,
         'lr': learning_rate,
+        'md': mode
     }
 
     # Initialize data loaders
@@ -730,7 +757,7 @@ def run_encoder_training(model_name, epochs, data_dir,
 
     # initialize model
     if model_name == 'ConvAutoEncoder':
-        model = models.__dict__[model_name](hyps['is'], hyps['os'])
+        model = models.__dict__[model_name](hyps['is'], hyps['os'], mode=hyps['md'])
     else:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
     print(model)
@@ -743,6 +770,8 @@ def run_encoder_training(model_name, epochs, data_dir,
     else:
         print('Training on CPU, very long training time is expectable.')
 
+    check_encoder_dim(mode, model, data_set)
+
     # optimizer and criterion(loss function)
     if TRAIN_ON_MULTI_GPUS:
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
@@ -750,6 +779,7 @@ def run_encoder_training(model_name, epochs, data_dir,
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     criterion = nn.L1Loss()
     # criterion = dich_mse_loss
+    # criterion = nn.MSELoss()
 
     # start training
     trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
@@ -763,5 +793,7 @@ if __name__ == '__main__':
     # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001,
     #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
+
     data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('ConvAutoEncoder', 50, data_dir, lr=0.01, hd=32, device='cuda:1')
+    run_encoder_training('ConvAutoEncoder', 20, data_dir,
+                         mode='pnf', lr=0.001, hd=32, device='cuda:1')
