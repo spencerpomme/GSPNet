@@ -292,6 +292,53 @@ class AutoEncoder(nn.Module):
         return out
 
 
+class ConvAutoEncoder(nn.Module):
+    '''
+    A CNN autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super(ConvAutoEncoder, self).__init__()
+        self.output_size = output_size
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define encode and decode layers
+        self.conv1 = nn.Conv2d(1, 16, 7, stride=2)
+        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
+        self.conv_t1 = nn.ConvTranspose2d(4, 16, 4, stride=2)
+        self.conv_t2 = nn.ConvTranspose2d(16, 1, 2, stride=2, output_padding=1)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector (flattened)
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv_t1(x))
+        out = self.conv_t2(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
 # TODO: finish this model
 class EmbedStateRNN(nn.Module):
     '''
