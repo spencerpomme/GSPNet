@@ -65,7 +65,12 @@ def regen(model, truths, dest, device='cuda:0'):
     '''
     for i, tensor in enumerate(truths):
         tensor = tensor.type(torch.float)
-        tensor = tensor.reshape((1, -1))
+        if 'conv1' in dir(model):
+            tensor = torch.unsqueeze(tensor, 0)
+            tensor = tensor.permute(0,3,2,1)
+        else:
+            tensor = tensor.reshape((1, -1))
+        tensor = tensor.to(device)
         deco = model(tensor)
         save_to(deco, dest, False, i)  # false means it's not real future
 
@@ -88,7 +93,7 @@ def load(path: str, size: int):
     # select a random place to start draw the prime
     # np.random.seed(0)
     start = np.random.randint(0, len(paths)-size)
-
+    print(f'Testing states id: {start} -> {start+size}')
     # load actual truths states, for test prediction accuracy visually
     for fp in paths[start: start+size]:
         truths_tensor = torch.load(fp)
@@ -195,13 +200,21 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
     else:
         device = torch.device('cpu')
 
-    model = models.__dict__[hyps['mn']](
+    if hyps['mn'] == 'ConvAutoEncoder':
+        model = models.__dict__[hyps['mn']](
         hyps['is'],
         hyps['os'],
-        hidden_dim=hyps['hd'],
         train_on_gpu=True,
         device=device
     )
+    else:
+        model = models.__dict__[hyps['mn']](
+            hyps['is'],
+            hyps['os'],
+            hidden_dim=hyps['hd'],
+            train_on_gpu=True,
+            device=device
+        )
 
     model.load_state_dict(torch.load(model_path))
     model.to(device)
@@ -237,7 +250,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnAutoEncoder-is4761-os4761-bs128-lr0.1-hd1024_mse.pt'
-    data_path = 'data/2018/15min/tensors'
+    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs128-lr0.01-hd32.pt'
+    data_path = 'data/2017/15min/tensors'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 14, 'cpu')
+    run(model_path, data_path, dest_path, 8, 'cuda:0')
