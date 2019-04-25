@@ -795,5 +795,5 @@ if __name__ == '__main__':
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
     data_dir = 'data/2018_15min/tensors'
-    run_encoder_training('ConvAutoEncoderShallow', 30, data_dir,
-                         mode='pnf', lr=0.001, hd=32, device='cuda:1')
+    run_encoder_training('ConvAutoEncoder', 50, data_dir,
+                         mode='pnf', lr=0.001, hd=64, device='cuda:1')
