@@ -39,6 +39,29 @@ from torch.utils.data import TensorDataset, DataLoader
 from glob import glob, iglob
 
 
+# util functions
+def decide_label(file: str):
+    '''
+    This function hard codes classification criteria to label the tensors.
+
+    Args:
+        file: a file name string
+        nc: number of classes
+    Returns:
+        label: the class label of a given tensor file
+    '''
+    pattern = re.compile(
+        '^(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)-(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)')
+
+    file = file.split('\\')[1]
+    i = int(pattern.findall(file)[0][3])
+    # 3-hour-a-class
+    labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    label = labels[i]
+    return label
+
+
 # models
 # RNN models to do sequential prediction:
 class VanillaStateLSTM(nn.Module):
@@ -292,7 +315,7 @@ class AutoEncoder(nn.Module):
         return out
 
 
-class ConvAutoEncoder_shallow(nn.Module):
+class ConvAutoEncoderShallow(nn.Module):
     '''
     A CNN autoencoder model, without any preprocessing to the inputs.
     '''
@@ -308,7 +331,7 @@ class ConvAutoEncoder_shallow(nn.Module):
             train_on_gpu:   whether use GPU or not
             device:         where to put the model
         '''
-        super(ConvAutoEncoder_shallow, self).__init__()
+        super(ConvAutoEncoderShallow, self).__init__()
         self.output_size = output_size
         self.train_on_gpu = train_on_gpu
         self.dvc = device
@@ -319,7 +342,7 @@ class ConvAutoEncoder_shallow(nn.Module):
             self.conv_t1 = nn.ConvTranspose2d(
                 16, 1, 2, stride=2, output_padding=1)
         elif mode == 'pnf':
-            self.conv2 = nn.Conv2d(3, 16, 7, stride=2)
+            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)
             self.conv_t1 = nn.ConvTranspose2d(
                 16, 3, 2, stride=2, output_padding=1)
 
@@ -520,7 +543,7 @@ class MultiDimLSTM(nn.Module):
 
 
 # classification model(s)
-class PeriodClassifier1(nn.Module):
+class ConvClassifier(nn.Module):
     '''
     A Convolutional Neural Network based classifier.
     Determines whether a snapshot is temporally distinguishable by viz.
@@ -532,7 +555,7 @@ class PeriodClassifier1(nn.Module):
         Args:
             n_classes: number of classes
         '''
-        super(PeriodClassifier1, self).__init__()
+        super(ConvClassifier, self).__init__()
         self.n_classes = n_classes  # (4 x 24) snapshots per day
         # define conv layers
         # in: (69 x 69) out: (33 x 33)
@@ -582,7 +605,7 @@ class PeriodClassifier1(nn.Module):
         return x
 
 
-class PeriodClassifier2(nn.Module):
+class MLPClassifier(nn.Module):
     '''
     A Convolutional Neural Network based classifier.
     Determines whether a snapshot is temporally distinguishable by viz.
@@ -595,59 +618,7 @@ class PeriodClassifier2(nn.Module):
         Args:
             n_classes: number of classes
         '''
-        super(PeriodClassifier2, self).__init__()
-        self.n_classes = n_classes  # (4 x 24) snapshots per day
-        # define conv layers
-        # in: (69 x 69) out: (33 x 33)
-        self.conv1 = nn.Conv2d(3, 33, 5, 2)
-        # in: (33 x 33) out: (16 x 16)
-        self.conv2 = nn.Conv2d(33, 64, 3, 2)
-
-        # dropout layer (p=0.2)
-        self.dropout = nn.Dropout(0.2)
-
-        # fully connected layers
-        # in (7 x 7 x 128) out (1024)
-        self.fc1 = nn.Linear(16*16*64, 1024)
-        self.fc2 = nn.Linear(1024, self.n_classes)
-
-    def forward(self, x):
-        '''
-        Forward behavior of the network.
-
-        Args:
-            x: input tensor
-        Returns:
-            y: prediction probability vector sized (n_classes, 1)
-        '''
-        # add sequence of convolutional layers
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-
-        # flatten tensor input
-        x = x.view(-1, 64 * 16 * 16)
-        x = self.dropout(x)
-        x = self.fc1(x)
-        x = self.dropout(x)
-        x = self.fc2(x)
-
-        return x
-
-
-class PeriodClassifier3(nn.Module):
-    '''
-    A Convolutional Neural Network based classifier.
-    Determines whether a snapshot is temporally distinguishable by viz.
-    '''
-
-    def __init__(self, n_classes):
-        '''
-        Initialization.
-
-        Args:
-            n_classes: number of classes
-        '''
-        super(PeriodClassifier3, self).__init__()
+        super(MLPClassifier, self).__init__()
         self.n_classes = n_classes  # (4 x 24) snapshots per day
 
         # dropout layer (p=0.2)
@@ -676,28 +647,6 @@ class PeriodClassifier3(nn.Module):
 
         return x
 
-
-# util functions
-def decide_label(file: str):
-    '''
-    This function hard codes classification criteria to label the tensors.
-
-    Args:
-        file: a file name string
-        nc: number of classes
-    Returns:
-        label: the class label of a given tensor file
-    '''
-    pattern = re.compile(
-        '^(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)-(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)')
-
-    file = file.split('\\')[1]
-    i = int(pattern.findall(file)[0][3])
-    # 3-hour-a-class
-    labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
-              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    label = labels[i]
-    return label
 
 if __name__ == '__main__':
 
