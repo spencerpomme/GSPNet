@@ -355,14 +355,7 @@ class EncoderDatasetRAM(data.Dataset):
             seq_len: timestep length of tensors
         '''
         self.paths = glob(datadir + '/*.pkl')
-        # only want full seq_len sized length numbers
         self.length = len(self.paths)
-        self.idict = {}
-        for i in range(self.length):
-            self.idict[i] = self.paths[i]
-
-        self.input_ids = self.idict.keys()
-        self.label_ids = self.idict.keys()
 
         # load all tensor into RAM
         tensors = []
@@ -387,4 +380,51 @@ class EncoderDatasetRAM(data.Dataset):
         tensor = self.tensors[index]
         X = torch.from_numpy(tensor)
         y = torch.from_numpy(tensor)
+        return X, y
+
+
+class ConvEncoderDatasetRAM(data.Dataset):
+    '''
+    Convolutional Auto encoder dataset.
+    '''
+
+    def __init__(self, datadir):
+        '''
+        Initialization.
+
+        Args:
+            datadir: directory of serialized tensors
+            seq_len: timestep length of tensors
+        '''
+        self.paths = glob(datadir + '/*.pkl')
+        self.length = len(self.paths)
+
+        # load all tensor into RAM
+        tensors = []
+        for path in tqdm(self.paths, total=self.length, ascii=True):
+            tensor = torch.load(path).numpy()
+            tensors.append(tensor)
+
+        tensors = np.array(tensors).astype('float32')
+        self.tensors = tensors
+        # numpy image to pytorch image need to swap axes
+        self.tensors = np.swapaxes(self.tensors, 1, 3)
+        print(f'Conv Autoencoder data shape: {tensors.shape}')
+
+    def __len__(self):
+        '''
+        Denotes the total number of samples
+        '''
+        return self.length - 1
+
+    def __getitem__(self, index):
+        '''
+        Generates one sample of data
+        '''
+        # Load data and get label
+        X = self.tensors[index]
+        X = torch.from_numpy(X)
+        y = self.tensors[index]
+        y = y.reshape(1, -1)
+        y = torch.from_numpy(y)
         return X, y
