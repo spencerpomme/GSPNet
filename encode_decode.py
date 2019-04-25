@@ -51,7 +51,7 @@ from datasets import *
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
-def regen(model, truths, dest, device='cuda:0'):
+def regen(model, truths, dest, mode, device='cuda:0'):
     '''
     Generate a size of decoded state tensors (snapshots).
 
@@ -59,6 +59,7 @@ def regen(model, truths, dest, device='cuda:0'):
         model: trained autoencoder, loaded from serialized file
         truths: a list of tensors
         dest: saving destination
+        mode: `od` or `pnf`
         device: hardware
     Returns:
         recs: regenerated traffic state tensors
@@ -72,7 +73,7 @@ def regen(model, truths, dest, device='cuda:0'):
             tensor = tensor.reshape((1, -1))
         tensor = tensor.to(device)
         deco = model(tensor)
-        save_to(deco, dest, False, i)  # false means it's not real future
+        save_to(deco, dest, False, i, mode)  # false means it's not real future
 
 
 def load(path: str, size: int):
@@ -102,7 +103,7 @@ def load(path: str, size: int):
     return truths
 
 
-def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
+def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int, mode: str):
     '''
     Save a tensor and its visualization image to specified destination.
 
@@ -111,6 +112,7 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
         dest: destination path of saving
         real: boolean value, indicating real future or predicted
         id: id of generated tensor/image
+        mode: `pnf` or `od`
     '''
     def create_dir(directory: str):
         '''
@@ -127,7 +129,10 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
             raise OSError
 
     # print(f'tensor.shape -> {tensor.shape}')
-    tensor = tensor.reshape((69, 69, 1))
+    if mode == 'od':
+        tensor = tensor.reshape((69, 69, 1))
+    if mode == 'pnf':
+        tensor = tensor.reshape((69, 69, 3))
     image_dest = dest + '/viz_images'
     tensor_dest = dest + '/tensors'
 
@@ -146,7 +151,10 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int):
     tensor *= (255 // tensor.max())
     tensor = tensor.astype('uint8')
     tensor = tensor.squeeze()
-    image = Image.fromarray(tensor, mode='L')
+    if mode == 'od':
+        image = Image.fromarray(tensor, mode='L')
+    elif mode == 'pnf':
+        image = Image.fromarray(tensor)
     image = image.resize((345, 345))
     image.save(image_dest)
 
@@ -225,7 +233,7 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
     return model
 
 
-def run(model_path, data_path, dest_path, size, device):
+def run(model_path, data_path, dest_path, size, mode, device):
     '''
     Main function of predict module.
 
@@ -244,16 +252,16 @@ def run(model_path, data_path, dest_path, size, device):
     model = reconstruct(model_path, hyps, device=device)
 
     truths = load(data_path, size)
-    regen(model, truths, dest_path, device=device)
+    regen(model, truths, dest_path, mode, device=device)
     # save actual future
     for i, truth in enumerate(truths):
-        save_to(truth, dest_path, True, i)
+        save_to(truth, dest_path, True, i, mode)
     print('Finished!')
 
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnConvAutoEncoderShallow-is4761-os4761-bs128-lr0.001-hd32-mdod.pt'
+    model_path = 'trained_models/mnConvAutoEncoderShallow-is14283-os14283-bs128-lr0.001-hd32-mdpnf.pt'
     data_path = 'data/2018_15min/tensors'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 8, 'cuda:0')
+    run(model_path, data_path, dest_path, 8, 'pnf', 'cuda:0')
