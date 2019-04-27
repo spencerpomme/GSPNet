@@ -93,7 +93,7 @@ def load(path: str, size: int):
 
     # select a random place to start draw the prime
     # np.random.seed(0)
-    start = np.random.randint(0, len(paths)-size)
+    start = np.random.randint(29000, len(paths)-size)
     print(f'Testing states id: {start} -> {start+size}')
     # load actual truths states, for test prediction accuracy visually
     for fp in paths[start: start+size]:
@@ -261,7 +261,7 @@ def run(model_path, data_path, dest_path, size, mode, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnConvAutoEncoderShallow-is14283-os14283-bs128-lr0.001-hd32-mdpnf.pt'
-    data_path = 'data/2018_15min/tensors'
+    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs64-lr0.001-hd32-mdod.pt'
+    data_path = 'data/2018/15min/tensors'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 8, 'pnf', 'cuda:0')
+    run(model_path, data_path, dest_path, 8, 'od', 'cuda:0')
