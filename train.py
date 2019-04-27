@@ -747,7 +747,7 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
 
     # Initialize data loaders
     # LSTM data loader
-    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoderShallow':
+    if model_name in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE']:
         data_set = ConvEncoderDatasetRAM(data_dir)
     else:
         data_set = EncoderDatasetRAM(data_dir)
@@ -762,14 +762,16 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
     valid_sampler = SequentialSampler(valid_idx)
 
     loader = DataLoader(data_set, sampler=train_sampler,
-                              batch_size=batch_size, num_workers=0, drop_last=True)
+                        batch_size=batch_size, num_workers=0, drop_last=True)
 
     valid_loader = DataLoader(data_set, sampler=valid_sampler,
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
-    if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoderShallow':
+    if model_name in ['ConvAutoEncoder', 'ConvAutoEncoderShallow']:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], mode=hyps['md'])
+    elif model_name == 'VAE':
+        model = models.__dict__[model_name](hyps['md'], h_dim=hyps['hd'], z_dim=32)
     else:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
     print(model)
@@ -807,5 +809,5 @@ if __name__ == '__main__':
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
     data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('ConvAutoEncoder', 5000, data_dir,
-                         mode='od', lr=0.001, hd=32, device='cuda:1')
+    run_encoder_training('VAE', 1000, data_dir,
+                         mode='od', lr=0.001, hd=256, device='cuda:1')
