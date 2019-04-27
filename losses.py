@@ -86,7 +86,7 @@ def fake_loss(D_out):
 
 
 # Loss function for Variational Autoencoder
-def loss_fn(recon_x, x, mu, logvar):
+def vae_loss(recon_x, x, mu, logvar):
     '''
     VAE loss function.
 
@@ -96,6 +96,7 @@ def loss_fn(recon_x, x, mu, logvar):
         mu::
         logvar:
     '''
+    # print(f'recon_x shape -> {recon_x.shape} | x shape -> {x.shape}')
     BCE = F.binary_cross_entropy(recon_x, x, size_average=False)
     # BCE = F.mse_loss(recon_x, x, size_average=False)
 
