@@ -47,7 +47,12 @@ def dich_mse_loss(output, label, alpha=0.1):
     return torch.mean(loss)
 
 
+# loss functions for GAN:
 def real_loss(D_out, smooth=False):
+    '''
+    Real loss.
+
+    '''
     batch_size = D_out.size(0)
     # label smoothing
     if smooth:
@@ -66,6 +71,10 @@ def real_loss(D_out, smooth=False):
 
 
 def fake_loss(D_out):
+    '''
+    Fake loss.
+
+    '''
     batch_size = D_out.size(0)
     labels = torch.zeros(batch_size)  # fake labels = 0
     if train_on_gpu:
@@ -74,3 +83,25 @@ def fake_loss(D_out):
     # calculate loss
     loss = criterion(D_out.squeeze(), labels)
     return loss
+
+
+# Loss function for Variational Autoencoder
+def loss_fn(recon_x, x, mu, logvar):
+    '''
+    VAE loss function.
+
+    Args:
+        recon_x:
+        x:
+        mu::
+        logvar:
+    '''
+    BCE = F.binary_cross_entropy(recon_x, x, size_average=False)
+    # BCE = F.mse_loss(recon_x, x, size_average=False)
+
+    # see Appendix B from VAE paper:
+    # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
+    # 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
+    KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
+    return BCE + KLD, BCE, KLD
