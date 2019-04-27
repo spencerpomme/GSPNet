@@ -129,6 +129,9 @@ def save_to(tensor: torch.Tensor, dest: str, real: bool, id: int, mode: str):
             raise OSError
 
     # print(f'tensor.shape -> {tensor.shape}')
+    if type(tensor) == tuple:
+        # means it's a return value of VAE
+        tensor = tensor[0]
     if mode == 'od':
         tensor = tensor.reshape((69, 69, 1))
     if mode == 'pnf':
@@ -218,6 +221,10 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
             device=device,
             mode=hyps['md']
         )
+    elif hyps['mn'] == 'VAE':
+        model = models.__dict__[hyps['mn']](
+            mode=hyps['md']
+        )
     else:
         model = models.__dict__[hyps['mn']](
             hyps['is'],
@@ -261,7 +268,7 @@ def run(model_path, data_path, dest_path, size, mode, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnConvAutoEncoder-is4761-os4761-bs64-lr0.001-hd32-mdod.pt'
+    model_path = 'trained_models/mnVAE-is4761-os4761-bs64-lr0.001-hd128-mdod.pt'
     data_path = 'data/2018/15min/tensors'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 8, 'od', 'cuda:0')
