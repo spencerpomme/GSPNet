@@ -706,7 +706,6 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
 
         # complete init function
-
         self.conv_dim = conv_dim
 
         # first, fully-connected layer
@@ -733,17 +732,6 @@ class Generator(nn.Module):
         return out
 
 
-# VAE model:
-class Flatten(nn.Module):
-    def forward(self, input):
-        return input.view(input.size(0), -1)
-
-
-class UnFlatten(nn.Module):
-    def forward(self, input, size=1024):
-        return input.view(input.size(0), size, 1, 1)
-
-
 class VAE(nn.Module):
     '''
     Variational Auto Encoder
@@ -754,65 +742,47 @@ class VAE(nn.Module):
         Initialization of VAE model.
         '''
         if mode == 'pnf':
-            image_channels = 3
+            self.image_channels = 3
         elif mode == 'od':
-            image_channels = 1
+            self.image_channels = 1
         else:
             raise ValueError('Wrong mode. Only pnf and od are supported.')
         super(VAE, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(image_channels, 16, kernel_size=7, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(16, 4, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(4, 2, kernel_size=4, stride=2, padding=1),
-            nn.ReLU(),
-            Flatten()
-        )
 
-        self.fc1 = nn.Linear(h_dim, z_dim)
-        self.fc2 = nn.Linear(h_dim, z_dim)
-        self.fc3 = nn.Linear(z_dim, h_dim)
+        self.conv1 = nn.Conv2d(self.image_channels, 16,
+                               kernel_size=7, stride=2)
+        self.conv2 = nn.Conv2d(16, 4, kernel_size=4, stride=2, padding=1)
 
-        self.decoder = nn.Sequential(
-            UnFlatten(),
-            nn.ConvTranspose2d(h_dim, 2, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(2, 4, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(4, 16, kernel_size=2, stride=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(16, image_channels, kernel_size=7, stride=2),
-            nn.Sigmoid(),
-        )
+        self.fc1 = nn.Linear(4*16*16, z_dim)
+        self.fc2 = nn.Linear(4*16*16, z_dim)
+        self.fc3 = nn.Linear(z_dim, 4*16*16)
 
-    def reparameterize(self, mu, logvar):
-        std = logvar.mul(0.5).exp_()
-        esp = torch.randn(*mu.size())
-        std = std.cuda()
-        esp = esp.cuda()
-        mu = mu.cuda()
-        z = mu + std * esp
-        return z
-
-    def bottleneck(self, h):
-        mu, logvar = self.fc1(h), self.fc2(h)
-        z = self.reparameterize(mu, logvar)
-        return z, mu, logvar
-
-    def encode(self, x):
-        h = self.encoder(x)
-        z, mu, logvar = self.bottleneck(h)
-        return z, mu, logvar
-
-    def decode(self, z):
-        z = self.fc3(z)
-        z = self.decoder(z)
-        return z
+        self.t_conv2 = nn.ConvTranspose2d(4, 16, kernel_size=2, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(16, self.image_channels,
+                                          kernel_size=7, stride=2)
 
     def forward(self, x):
-        z, mu, logvar = self.encode(x)
-        z = self.decode(z)
+        # print('x.shape -> ', x.shape)
+        x = F.relu(self.conv1(x))
+        # print('x.shape -> ', x.shape)
+        x = F.relu(self.conv2(x))
+        # print('x.shape -> ', x.shape)
+        h = x.view(x.size(0), -1)
+        # print('h.shape -> ', h.shape)
+
+        mu, logvar = self.fc1(h), self.fc2(h)
+        std = logvar.mul(0.5).exp_()
+        esp = torch.randn(*mu.size()).cuda()
+        z = mu + std * esp
+        # print('z.shape -> ', z.shape)
+        z = self.fc3(z)
+        # print('z.shape -> ', z.shape)
+        z = z.view(z.size(0), 4, 16, 16)
+        # print('z.shape -> ', z.shape)
+        z = F.relu(self.t_conv2(z))
+        # print('z.shape -> ', z.shape)
+        z = torch.sigmoid(self.t_conv1(z))
+        z = z.reshape(z.size(0), self.image_channels, -1)
         return z, mu, logvar
 
 
