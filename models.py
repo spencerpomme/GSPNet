@@ -421,8 +421,6 @@ class ConvAutoEncoder(nn.Module):
         x = F.relu(self.t_conv2(x))
         out = self.t_conv1(x)
 
-        print(f'out.shape --> {out.shape}')
-
         # reshape to be batch_size first
         out = out.view(batch_size, -1, self.output_size)
 
@@ -647,6 +645,175 @@ class MLPClassifier(nn.Module):
         x = self.fc2(x)
 
         return x
+
+
+# GAN model:
+# helper deconv function
+def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_norm=True):
+    """Creates a transposed-convolutional layer, with optional batch normalization.
+    """
+    # create a sequence of transpose + optional batch norm layers
+    layers = []
+    transpose_conv_layer = nn.ConvTranspose2d(in_channels, out_channels,
+                                              kernel_size, stride, padding, bias=False)
+    # append transpose convolutional layer
+    layers.append(transpose_conv_layer)
+
+    if batch_norm:
+        # append batchnorm layer
+        layers.append(nn.BatchNorm2d(out_channels))
+
+    return nn.Sequential(*layers)
+
+
+class Discriminator(nn.Module):
+
+    def __init__(self, conv_dim=32):
+        super(Discriminator, self).__init__()
+
+        # complete init function
+        self.conv_dim = conv_dim
+
+        # 32x32 input
+        # first layer, no batch_norm
+        self.conv1 = conv(3, conv_dim, 4, batch_norm=False)
+        # 16x16 out
+        self.conv2 = conv(conv_dim, conv_dim*2, 4)
+        # 8x8 out
+        self.conv3 = conv(conv_dim*2, conv_dim*4, 4)
+        # 4x4 out
+
+        # final, fully-connected layer
+        self.fc = nn.Linear(conv_dim*4*4*4, 1)
+
+    def forward(self, x):
+        # all hidden layers + leaky relu activation
+        out = F.leaky_relu(self.conv1(x), 0.2)
+        out = F.leaky_relu(self.conv2(out), 0.2)
+        out = F.leaky_relu(self.conv3(out), 0.2)
+
+        # flatten
+        out = out.view(-1, self.conv_dim*4*4*4)
+
+        # final output layer
+        out = self.fc(out)
+        return out
+
+
+class Generator(nn.Module):
+
+    def __init__(self, z_size, conv_dim=32):
+        super(Generator, self).__init__()
+
+        # complete init function
+
+        self.conv_dim = conv_dim
+
+        # first, fully-connected layer
+        self.fc = nn.Linear(z_size, conv_dim*4*4*4)
+
+        # transpose conv layers
+        self.t_conv1 = deconv(conv_dim*4, conv_dim*2, 4)
+        self.t_conv2 = deconv(conv_dim*2, conv_dim, 4)
+        self.t_conv3 = deconv(conv_dim, 3, 4, batch_norm=False)
+
+    def forward(self, x):
+        # fully-connected + reshape
+        out = self.fc(x)
+        out = out.view(-1, self.conv_dim*4, 4, 4)  # (batch_size, depth, 4, 4)
+
+        # hidden transpose conv layers + relu
+        out = F.relu(self.t_conv1(out))
+        out = F.relu(self.t_conv2(out))
+
+        # last layer + tanh activation
+        out = self.t_conv3(out)
+        out = F.tanh(out)
+
+        return out
+
+
+# VAE model:
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
+class UnFlatten(nn.Module):
+    def forward(self, input, size=1024):
+        return input.view(input.size(0), size, 1, 1)
+
+
+class VAE(nn.Module):
+    '''
+    Variational Auto Encoder
+    '''
+
+    def __init__(self, mode='pnf', h_dim=1024, z_dim=32):
+        '''
+        Initialization of VAE model.
+        '''
+        if mode == 'pnf':
+            image_channels = 3
+        elif mode == 'od':
+            image_channels = 1
+        else:
+            raise ValueError('Wrong mode. Only pnf and od are supported.')
+        super(VAE, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Conv2d(image_channels, 16, kernel_size=7, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(16, 4, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(4, 2, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            Flatten()
+        )
+
+        self.fc1 = nn.Linear(h_dim, z_dim)
+        self.fc2 = nn.Linear(h_dim, z_dim)
+        self.fc3 = nn.Linear(z_dim, h_dim)
+
+        self.decoder = nn.Sequential(
+            UnFlatten(),
+            nn.ConvTranspose2d(h_dim, 2, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(2, 4, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(4, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, image_channels, kernel_size=7, stride=2),
+            nn.Sigmoid(),
+        )
+
+    def reparameterize(self, mu, logvar):
+        std = logvar.mul(0.5).exp_()
+        esp = torch.randn(*mu.size())
+        std = std.cuda()
+        esp = esp.cuda()
+        mu = mu.cuda()
+        z = mu + std * esp
+        return z
+
+    def bottleneck(self, h):
+        mu, logvar = self.fc1(h), self.fc2(h)
+        z = self.reparameterize(mu, logvar)
+        return z, mu, logvar
+
+    def encode(self, x):
+        h = self.encoder(x)
+        z, mu, logvar = self.bottleneck(h)
+        return z, mu, logvar
+
+    def decode(self, z):
+        z = self.fc3(z)
+        z = self.decoder(z)
+        return z
+
+    def forward(self, x):
+        z, mu, logvar = self.encode(x)
+        z = self.decode(z)
+        return z, mu, logvar
 
 
 if __name__ == '__main__':
