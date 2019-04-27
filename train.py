@@ -707,7 +707,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
 
 
 def run_encoder_training(model_name, epochs, data_dir, mode='od',
-                         hd=512, lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+                         hd=512, lr=0.001, bs=64, dp=0.5, device='cuda:0'):
     '''
     Main function of auto encoder.
 
@@ -752,8 +752,20 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
     else:
         data_set = EncoderDatasetRAM(data_dir)
 
-    loader = DataLoader(data_set,
-                        batch_size=batch_size, num_workers=0, drop_last=True)
+    # split dataset for training and validation
+    num_train = len(data_set)
+    indices = list(range(num_train))
+    split = int(np.floor(0.8 * num_train))  # hard coded to 0.8
+
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SequentialSampler(train_idx)
+    valid_sampler = SequentialSampler(valid_idx)
+
+    loader = DataLoader(data_set, sampler=train_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
+
+    valid_loader = DataLoader(data_set, sampler=valid_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
     if model_name == 'ConvAutoEncoder' or model_name == 'ConvAutoEncoderShallow':
@@ -776,10 +788,10 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
     if TRAIN_ON_MULTI_GPUS:
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-    criterion = nn.L1Loss()
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+    # criterion = nn.L1Loss()
     # criterion = dich_mse_loss
-    # criterion = nn.MSELoss()
+    criterion = nn.MSELoss()
 
     # start training
     trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
@@ -791,9 +803,9 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
 if __name__ == '__main__':
 
     # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001,
-    #                         hd=1024, nl=2, dp=0.5, device='cuda:1')
+    #                         hd=4096, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    data_dir = 'data/2018_15min/tensors'
-    run_encoder_training('ConvAutoEncoder', 50, data_dir,
-                         mode='pnf', lr=0.001, hd=64, device='cuda:1')
+    data_dir = 'data/2018/15min/tensors'
+    run_encoder_training('ConvAutoEncoder', 5000, data_dir,
+                         mode='od', lr=0.001, hd=32, device='cuda:1')
