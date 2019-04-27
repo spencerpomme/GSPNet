@@ -706,6 +706,76 @@ def train_encoder(model, optimizer, criterion, n_epochs,
     return model
 
 
+def train_vae(model, optimizer, criterion, n_epochs,
+                  loader, hyps, device='cuda:0', show_every_n_batches=100):
+    '''
+    Train an VAE with the given hyperparameters.
+
+    Args:
+        model:              The PyTorch Module that holds the neural network
+        optimizer:          The PyTorch optimizer for the neural network
+        criterion:          The PyTorch loss function
+        n_epochs:           Total go through of entire dataset
+        loader:             Training data loader
+        hyps:               A dict containing hyperparameters
+        device:             Training device
+        show_every_batches: Display loss every this number of time steps
+    Returns:
+        A trained model. The best model will also be saved locally.
+    '''
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training on device {device} started at {time.ctime()}')
+    # validation constants
+    valid_loss_min = np.inf
+
+    losses = []
+    bces = []
+    klds = []
+
+    model.train()
+
+    print("Training for %d epoch(s)..." % n_epochs)
+    for epoch_i in range(1, n_epochs + 1):
+
+        for data, label in loader:
+            # forward, back prop
+            if TRAIN_ON_MULTI_GPUS:
+                data, label = data.cuda(), label.cuda()
+            elif torch.cuda.is_available():
+                data, label = data.to(device), label.to(device)
+
+            recon_images, mu, logvar = model(data)
+            loss, bce, kld = criterion(recon_images, label, mu, logvar)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # record loss
+            losses.append(loss.item() / hyps['bs'])
+            bces.append(bce.item() / hyps['bs'])
+            klds.append(kld.item() / hyps['bs'])
+
+        al = np.mean(losses)
+        ab = np.mean(bces)
+        ak = np.mean(klds)
+        # printing loss stats
+        print(
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {al:.4f} | BCE: {ab:.4f} | KLD: {ak:.4f}', flush=True)
+        # clear
+        losses = []
+
+    torch.save(model.state_dict(), 'trained_models' + '/' +
+               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
+
+    # returns a trained model
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+    return model
+
+
 def run_encoder_training(model_name, epochs, data_dir, mode='od',
                          hd=512, lr=0.001, bs=64, dp=0.5, device='cuda:0'):
     '''
@@ -791,13 +861,19 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
         optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-    # criterion = nn.L1Loss()
-    # criterion = dich_mse_loss
-    criterion = nn.MSELoss()
 
-    # start training
-    trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
+    if model_name == 'VAE':
+        criterion = vae_loss
+        trained_model = train_vae(model, optimizer, criterion, epochs, loader,
                                   hyps, device=device)
+
+    else:
+        criterion = nn.L1Loss()
+        # criterion = nn.L1Loss()
+        # criterion = dich_mse_loss
+    # start training
+        trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
+                                      hyps, device=device)
 
     return trained_model
 
@@ -808,6 +884,6 @@ if __name__ == '__main__':
     #                         hd=4096, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    data_dir = 'data/2018/15min/tensors'
+    data_dir = 'data/2018_15min/tensors'
     run_encoder_training('VAE', 1000, data_dir,
-                         mode='od', lr=0.001, hd=256, device='cuda:1')
+                         mode='pnf', lr=1e-3, hd=128, device='cuda:0')
