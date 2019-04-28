@@ -707,7 +707,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
 
 
 def train_vae(model, optimizer, criterion, n_epochs,
-                  loader, hyps, device='cuda:0', show_every_n_batches=100):
+              loader, hyps, device='cuda:0', show_every_n_batches=100):
     '''
     Train an VAE with the given hyperparameters.
 
@@ -740,15 +740,16 @@ def train_vae(model, optimizer, criterion, n_epochs,
     print("Training for %d epoch(s)..." % n_epochs)
     for epoch_i in range(1, n_epochs + 1):
 
-        for data, label in loader:
+        for data, _ in loader:
             # forward, back prop
             if TRAIN_ON_MULTI_GPUS:
-                data, label = data.cuda(), label.cuda()
+                data = data.cuda()
             elif torch.cuda.is_available():
-                data, label = data.to(device), label.to(device)
+                data = data.to(device)
 
             recon_images, mu, logvar = model(data)
-            loss, bce, kld = criterion(recon_images, label, mu, logvar)
+            # print(f'label.shape -> {label.shape} | recon_images.shape -> {recon_images.shape}')
+            loss, bce, kld = criterion(recon_images, data, mu, logvar)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -860,7 +861,7 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
     if TRAIN_ON_MULTI_GPUS:
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
-        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     if model_name == 'VAE':
         criterion = vae_loss
@@ -884,6 +885,6 @@ if __name__ == '__main__':
     #                         hd=4096, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    data_dir = 'data/2018_15min/tensors'
-    run_encoder_training('VAE', 1000, data_dir,
-                         mode='pnf', lr=1e-3, hd=128, device='cuda:0')
+    data_dir = 'data/2018/15min/tensors'
+    run_encoder_training('VAE', 100, data_dir,
+                         mode='od', lr=0.001, hd=128, device='cuda:0')
