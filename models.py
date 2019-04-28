@@ -749,16 +749,16 @@ class VAE(nn.Module):
             raise ValueError('Wrong mode. Only pnf and od are supported.')
         super(VAE, self).__init__()
 
-        self.conv1 = nn.Conv2d(self.image_channels, 16,
+        self.conv1 = nn.Conv2d(self.image_channels, 32,
                                kernel_size=7, stride=2)
-        self.conv2 = nn.Conv2d(16, 4, kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(32, 8, kernel_size=4, stride=2, padding=1)
 
-        self.fc1 = nn.Linear(4*16*16, z_dim)
-        self.fc2 = nn.Linear(4*16*16, z_dim)
-        self.fc3 = nn.Linear(z_dim, 4*16*16)
+        self.fc1 = nn.Linear(8*16*16, z_dim)
+        self.fc2 = nn.Linear(8*16*16, z_dim)
+        self.fc3 = nn.Linear(z_dim, 8*16*16)
 
-        self.t_conv2 = nn.ConvTranspose2d(4, 16, kernel_size=2, stride=2)
-        self.t_conv1 = nn.ConvTranspose2d(16, self.image_channels,
+        self.t_conv2 = nn.ConvTranspose2d(8, 32, kernel_size=2, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(32, self.image_channels,
                                           kernel_size=7, stride=2)
 
     def forward(self, x):
@@ -777,12 +777,12 @@ class VAE(nn.Module):
         # print('z.shape -> ', z.shape)
         z = self.fc3(z)
         # print('z.shape -> ', z.shape)
-        z = z.view(z.size(0), 4, 16, 16)
+        z = z.view(z.size(0), 8, 16, 16)
         # print('z.shape -> ', z.shape)
         z = F.relu(self.t_conv2(z))
         # print('z.shape -> ', z.shape)
         z = torch.sigmoid(self.t_conv1(z))
-        z = z.reshape(z.size(0), self.image_channels, -1)
+
         return z, mu, logvar
 
 
