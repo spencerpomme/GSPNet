@@ -31,7 +31,7 @@ from torch.utils.data import TensorDataset, DataLoader
 
 def dich_mse_loss(output, label, alpha=0.1):
     '''
-    Dichotomy mean square error loss.
+    Dichotomy mean square error loss. This is useless.
 
     Args:
         output: calculated prediction tensor
@@ -89,16 +89,10 @@ def fake_loss(D_out):
 def vae_loss(recon_x, x, mu, logvar):
     '''
     VAE loss function.
-
-    Args:
-        recon_x:
-        x:
-        mu::
-        logvar:
     '''
     # print(f'recon_x shape -> {recon_x.shape} | x shape -> {x.shape}')
-    BCE = F.binary_cross_entropy(recon_x, x, size_average=False)
-    # BCE = F.mse_loss(recon_x, x, size_average=False)
+    # BCE = F.binary_cross_entropy(recon_x, x, size_average=False)
+    BCE = F.mse_loss(recon_x, x, size_average=False)
 
     # see Appendix B from VAE paper:
     # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
@@ -106,3 +100,8 @@ def vae_loss(recon_x, x, mu, logvar):
     KLD = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
 
     return BCE + KLD, BCE, KLD
+
+
+# sparse autoencoder loss
+def sparse_encoder_loss(target, label):
+    pass
