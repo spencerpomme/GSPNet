@@ -427,4 +427,5 @@ class ConvEncoderDatasetRAM(data.Dataset):
         y = self.tensors[index]
         y = y.reshape(1, -1)
         y = torch.from_numpy(y)
+        # print(f'X.shape -> {X.shape} || y.shape -> {y.shape}')
         return X, y
