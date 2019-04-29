@@ -71,14 +71,14 @@ def save_model(model, dest: str, hyps: dict):
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
         name += f'-is{hyps["is"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
-              'SparseAutoEncoder']:
+              'SparseAutoEncoder', 'SparseConvAutoEncoder']:
         name += f'-hd{hyps["hd"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
         name += f'-nl{hyps["nl"]}-dp{hyps["dp"]}-sl{hyps["sl"]}'
     if mn in ['ConvClassifier', 'MLPClassifier']:
         name += f'-nc{hyps["nc"]}'
     if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
-              'SparseAutoEncoder']:
+              'SparseAutoEncoder', 'SparseConvAutoEncoder']:
         name += f'-md{hyps["md"]}'
     if mn in ['VAE']:
         name += f'-zd{hyps["z_dim"]}'
@@ -943,6 +943,213 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
     return trained_model
 
 
+def train_GAN(D, G, d_opt, g_opt, criterion, n_epochs,
+              train_loader, valid_loader, hyps, device='cuda:0', show_every_n_batches=100):
+    '''
+    '''
+    # training hyperparams
+    n_epochs = 50
+
+    # keep track of loss and generated, "fake" samples
+    samples = []
+    losses = []
+
+    print_every = 300
+
+    # Get some fixed data for sampling. These are images that are held
+    # constant throughout training, and allow us to inspect the model's performance
+    sample_size = 16
+    fixed_z = np.random.uniform(-1, 1, size=(sample_size, z_size))
+    fixed_z = torch.from_numpy(fixed_z).float()
+
+    # train the network
+    for epoch in range(n_epochs):
+
+        for batch_i, (real_images, _) in enumerate(train_loader):
+
+            batch_size = real_images.size(0)
+            # important rescaling step
+            real_images = scale(real_images)
+
+            # ============================================ #
+            #            TRAIN THE DISCRIMINATOR           #
+            # ============================================ #
+            d_optimizer.zero_grad()
+
+            # 1. Train with real images
+            # Compute the discriminator losses on real images
+            if TRAIN_ON_MULTI_GPUS:
+                real_images = real_images.cuda()
+            elif torch.cuda.is_available():
+                real_images = real_images.to(device)
+
+            D_real = D(real_images)
+            d_real_loss = real_loss(D_real)
+
+            # 2. Train with fake images
+            # Generate fake images
+            z = np.random.uniform(-1, 1, size=(batch_size, z_size))
+            z = torch.from_numpy(z).float()
+            # move x to GPU, if available
+            if TRAIN_ON_MULTI_GPUS:
+                z = z.cuda()
+            elif torch.cuda.is_available():
+                z = z.to(device)
+
+            fake_images = G(z)
+
+            # Compute the discriminator losses on fake images
+            D_fake = D(fake_images)
+            d_fake_loss = fake_loss(D_fake)
+
+            # add up loss and perform backprop
+            d_loss = d_real_loss + d_fake_loss
+            d_loss.backward()
+            d_optimizer.step()
+
+            # ========================================= #
+            #            TRAIN THE GENERATOR            #
+            # ========================================= #
+            g_optimizer.zero_grad()
+
+            # 1. Train with fake images and flipped labels
+            # Generate fake images
+            z = np.random.uniform(-1, 1, size=(batch_size, z_size))
+            z = torch.from_numpy(z).float()
+            if TRAIN_ON_MULTI_GPUS:
+                z = z.cuda()
+            elif torch.cuda.is_available():
+                z = z.to(device)
+            fake_images = G(z)
+
+            # Compute the discriminator losses on fake images
+            # using flipped labels!
+            D_fake = D(fake_images)
+            g_loss = real_loss(D_fake)  # use real loss to flip labels
+
+            # perform backprop
+            g_loss.backward()
+            g_optimizer.step()
+
+            # Print some loss stats
+            if batch_i % print_every == 0:
+                # append discriminator loss and generator loss
+                losses.append((d_loss.item(), g_loss.item()))
+                # print discriminator and generator loss
+                print('Epoch [{:5d}/{:5d}] | d_loss: {:6.4f} | g_loss: {:6.4f}'.format(
+                    epoch+1, n_epochs, d_loss.item(), g_loss.item()))
+
+        # AFTER EACH EPOCH
+        # generate and save sample, fake images
+        G.eval()  # for generating samples
+        if TRAIN_ON_MULTI_GPUS:
+            fixed_z = fixed_z.cuda()
+        elif torch.cuda.is_available():
+            fixed_z = fixed_z.to(device)
+
+        samples_z = G(fixed_z)
+        samples.append(samples_z)
+        G.train()  # back to training mode
+
+    # Save training generator samples
+    with open('train_samples.pkl', 'wb') as f:
+        pkl.dump(samples, f)
+
+
+def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
+                     beta1=0.5, beta2=0.999, mode='od', device='cuda:0'):
+    '''
+    Main function of GAN.
+
+    Args:
+        data_dir: location of training data
+        epochs: number of epochs to train
+        bs: batch_size
+        vs: validation size
+        lr: learning rate
+        mode: pnf or od
+        conv_dim: convolutional layer dimension
+        device: where to train the model
+    '''
+    # Training parameters
+    epochs = epochs
+    learning_rate = lr
+    batch_size = bs
+
+    # Model parameters
+    if mode == 'od':
+        input_size = 69 * 69 * 1
+    elif mode == 'pnf':
+        input_size = 69 * 69 * 3
+    else:
+        raise ValueError('Only `od` and `pnf` are supported.')
+    output_size = input_size
+    hidden_dim = hd
+
+    # wrap essential info into dictionary:
+    hyps = {
+        'is': input_size,
+        'os': output_size,
+        'mn': 'GAN',
+        'hd': hidden_dim,
+        'bs': batch_size,
+        'lr': learning_rate,
+        'md': mode
+    }
+
+    data_set = ConvEncoderDatasetRAM(data_dir)
+
+    # split dataset for training and validation
+    num_train = len(data_set)
+    indices = list(range(num_train))
+    split = int(np.floor(0.8 * num_train))  # hard coded to 0.8
+
+    train_idx, valid_idx = indices[split:], indices[:split]
+    train_sampler = SequentialSampler(train_idx)
+    valid_sampler = SequentialSampler(valid_idx)
+
+    loader = DataLoader(data_set, sampler=train_sampler,
+                        batch_size=batch_size, num_workers=0, drop_last=True)
+
+    valid_loader = DataLoader(data_set, sampler=valid_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
+
+    # define discriminator and generator
+    D = Discriminator(conv_dim)
+    G = Generator(z_size=z_size, conv_dim=conv_dim)
+
+    # model training device
+    if TRAIN_ON_MULTI_GPUS:
+        D = nn.DataParallel(D).cuda()
+        G = nn.DataParallel(G).cuda()
+    elif torch.cuda.is_available():
+        D = D.to(device)
+        G = G.to(device)
+    else:
+        print('Training on CPU, very long training time is expectable.')
+
+    # params
+    lr = 0.0002
+    beta1 = 0.5
+    beta2 = 0.999  # default value
+
+    # Create optimizers for the discriminator and generator
+    d_optimizer = optim.Adam(D.parameters(), lr, [beta1, beta2])
+    g_optimizer = optim.Adam(G.parameters(), lr, [beta1, beta2])
+
+    # Create optimizers for the discriminator and generator
+    if TRAIN_ON_MULTI_GPUS:
+        d_optimizer = optim.Adam(D.module.parameters(), lr, [beta1, beta2])
+        g_optimizer = optim.Adam(G.module.parameters(), lr, [beta1, beta2])
+    else:
+        d_optimizer = optim.Adam(D.parameters(), lr, [beta1, beta2])
+        g_optimizer = optim.Adam(G.parameters(), lr, [beta1, beta2])
+
+    train_GAN()
+
+    return trained_model
+
+
 if __name__ == '__main__':
 
     # dataset folders
@@ -957,8 +1164,9 @@ if __name__ == '__main__':
         "pnf1712": '2017_12min'
     }
 
-    data_dir = f'data/{datasets["pnf1815"]}/tensors'
+    data_dir = f'data/{datasets["od1815"]}/tensors'
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
-    run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.01, mode='pnf', hd=128, device='cuda:1')
+    run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
+                         mode='od', hd=256, device='cuda:1')
