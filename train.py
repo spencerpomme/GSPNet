@@ -62,6 +62,7 @@ def save_model(model, dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
+    name = ''
     mn = f'mn{hyps["mn"]}'
     name += mn
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
@@ -94,6 +95,7 @@ def get_curve_name(dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
+    name = ''
     mn = f'mn{hyps["mn"]}'
     name += mn
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
@@ -735,23 +737,23 @@ def train_encoder(model, optimizer, criterion, n_epochs, loader, hyps,
             optimizer.step()
             losses.append(loss.item())
 
-            if epoch_i % show_every_n_epochs == 0:
-                avg_loss = np.mean(losses)
-                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.6f}')
+        if epoch_i % show_every_n_epochs == 0:
+            avg_loss = np.mean(losses)
+            print(f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.6f}')
 
-                if avg_loss < loss_min:
+            if avg_loss < loss_min:
 
-                    print(f'Valid Loss {loss_min:.6f} -> {avg_loss:.6f}. Saving...')
+                print(f'Valid Loss {loss_min:.6f} -> {avg_loss:.6f}. Saving...')
 
-                    # saving state_dict of model
-                    save_model(model, 'trained_models', hyps)
+                # saving state_dict of model
+                save_model(model, 'trained_models', hyps)
 
-                    loss_min = avg_loss
-                    stop = 0
-                else:
-                    stop += 1
+                loss_min = avg_loss
+                stop = 0
+            else:
+                stop += 1
 
-                losses = []
+            losses = []
 
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
@@ -956,5 +958,5 @@ if __name__ == '__main__':
     data_dir = f'data/{datasets["pnf1815"]}/tensors'
     # run_recursive_training()
     # run_classifier_training()
-    run_encoder_training('SparseAutoEncoder', data_dir, 100, 256, 0.8, 0.001,
+    run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.001,
                          mode='pnf', hd=64, device='cuda:0')
