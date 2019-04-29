@@ -182,17 +182,48 @@ def retrieve_hyps(path: str):
     hidden_size_pt = re.compile('(?<=hd)\d*')
     lr_pt = re.compile('(?<=lr)0.\d*')
     mode_pt = re.compile('(?<=md)[A-Za-z]*')
+    vs_pt = re.compile('(?<=vs)0.\d*')
+    nc_pt = re.compile('(?<=nc)\d*')
+    zdim_pt = re.compile('(?<=zd)\d*')
+    seq_len_pt = re.compile('(?<=sl)\d*')
+    dp_pt = re.compile('(?<=dp)0.\d*')
+    num_layer_pt = re.compile('(?<=nl)\d*')
 
     # create dictionary for information to reconstruct model
-    hyps = {
-        'mn': model_name_pt.findall(path)[0],
-        'is': int(input_size_pt.findall(path)[0]),
-        'os': int(output_size_pt.findall(path)[0]),
-        'bs': int(batch_size_pt.findall(path)[0]),
-        'hd': int(hidden_size_pt.findall(path)[0]),
-        'lr': float(lr_pt.findall(path)[0]),
-        'md': mode_pt.findall(path)[0]
-    }
+    hyps = {}
+    hyps['mn'] = model_name_pt.findall(path)[0]
+    mn = hyps['mn']
+
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
+        hyps['os'] = int(output_size_pt.findall(path)[0])
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
+        hyps['is'] = int(input_size_pt.findall(path)[0])
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'SparseAutoEncoder']:
+        hyps['hd'] = int(hidden_size_pt.findall(path)[0])
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
+        hyps.update(
+            {
+                'nl': int(num_layer_pt.findall(path)[0]),
+                'dp': float(dp_pt.findall(path)[0]),
+                'sl': int(seq_len_pt.findall(path)[0])
+            }
+        )
+    if mn in ['ConvClassifier', 'MLPClassifier']:
+        hyps['nc'] = int(nc_pt.findall(path)[0])
+    if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
+              'SparseAutoEncoder']:
+        hyps['md'] = mode_pt.findall(path)[0]
+    if mn in ['VAE']:
+        hyps['zd'] = int(zdim_pt.findall(path)[0])
+
+    hyps.update(
+        {
+            'bs': int(batch_size_pt.findall(path)[0]),
+            'lr': float(lr_pt.findall(path)[0]),
+        }
+    )
 
     return hyps
 
@@ -213,31 +244,47 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
     else:
         device = torch.device('cpu')
 
-    if hyps['mn'] == 'ConvAutoEncoder' or hyps['mn'] == 'ConvAutoEncoderShallow':
-        model = models.__dict__[hyps['mn']](
+    mn = hyps['mn']
+
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
+        model = models.__dict__[mn](
             hyps['is'],
             hyps['os'],
+            hidden_dim=hyps['hd'],
+            n_layers=hyps['nl'],
+            drop_prob=hyps['dp'],
             train_on_gpu=True,
-            device=device,
-            mode=hyps['md']
+            device=device
         )
-    elif hyps['mn'] == 'VAE':
-        model = models.__dict__[hyps['mn']](
-            mode=hyps['md']
+    elif mn in ['ConvClassifier', 'MLPClassifier']:
+        model = models.__dict__[mn](
+            mode=hyps['nc']
         )
-    elif hyps['mn'] == 'SparseAutoEncoder':
-        model = models.__dict__[hyps['mn']](
-            mode=hyps['md'],
-            hidden_dim=hyps['hd']
-        )
-    else:
-        model = models.__dict__[hyps['mn']](
+    elif mn == 'AutoEncoder':
+        model = models.__dict__[mn](
             hyps['is'],
             hyps['os'],
             hidden_dim=hyps['hd'],
             train_on_gpu=True,
             device=device
         )
+    elif mn in ['ConvAutoEncoderShallow', 'ConvAutoEncoder']:
+        model = models.__dict__[mn](
+            hyps['os'],
+            hyps['md']
+        )
+    elif mn == 'VAE':
+        model = models.__dict__[mn](
+            mode=hyps['md'],
+            z_dim=hyps['zd']
+        )
+    elif mn in ['SparseConvAutoEncoder', 'SparseAutoEncoder']:
+        model = models.__dict__[mn](
+            mode=hyps['md'],
+            hidden_dim=hyps['hd']
+        )
+    else:
+        model = models.__dict__[mn]()
 
     model.load_state_dict(torch.load(model_path))
     model.to(device)
