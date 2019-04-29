@@ -214,13 +214,13 @@ def train_classifier(model, optimizer, criterion, n_epochs,
         vl.append(avg_val_loss)
         # printing loss stats
         print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} | Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.6f} | Val Loss: {avg_val_loss:.6f} | Min Val: {valid_loss_min:.6f}',
             flush=True)
 
         # decide whether to save model or not:
         if avg_val_loss < valid_loss_min:
 
-            print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. \
+            print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. \
                     Saving...', flush=True)
 
             torch.save(model.state_dict(),
@@ -507,14 +507,14 @@ def train_recurrent(model, batch_size, optimizer, criterion,
                 vl.append(avg_val_loss)
                 # printing loss stats
                 print(
-                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.4f} ' +
-                    f'| Val Loss: {avg_val_loss:.4f} | Min Val: {valid_loss_min:.4f}',
+                    f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_tra_loss:.6f} ' +
+                    f'| Val Loss: {avg_val_loss:.6f} | Min Val: {valid_loss_min:.6f}',
                     flush=True)
 
                 # decide whether to save model or not:
                 if avg_val_loss < valid_loss_min:
 
-                    print(f'Valid Loss {valid_loss_min:.4f} -> {avg_val_loss:.4f}. Saving...', flush=True)
+                    print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. Saving...', flush=True)
 
                     # saving state_dict of model
                     save_model(model, 'trained_models', hyps)
@@ -642,8 +642,8 @@ def run_recursive_training(model_name, epochs, sl=12, bs=64,
     plt.show()
 
 
-def train_encoder(model, optimizer, criterion, n_epochs,
-                  loader, hyps, device='cuda:0', show_every_n_batches=100):
+def train_encoder(model, optimizer, criterion, n_epochs, early_stop_count=20,
+                  loader, hyps, device='cuda:0', show_every_n_epochs=10):
     '''
     Train an auto encoder with the given hyperparameters.
 
@@ -652,6 +652,7 @@ def train_encoder(model, optimizer, criterion, n_epochs,
         optimizer:          The PyTorch optimizer for the neural network
         criterion:          The PyTorch loss function
         n_epochs:           Total go through of entire dataset
+        early_stop_count:   Early stop number
         loader:             Training data loader
         hyps:               A dict containing hyperparameters
         device:             Training device
@@ -659,48 +660,56 @@ def train_encoder(model, optimizer, criterion, n_epochs,
     Returns:
         A trained model. The best model will also be saved locally.
     '''
-    # clear cache
+
     torch.cuda.empty_cache()
-    # start timing
     start = time.time()
     print(f'Training on device {device} started at {time.ctime()}')
-    # validation constants
-    valid_loss_min = np.inf
 
+    loss_min = np.inf
     losses = []
-
+    stop = 0
     model.train()
 
     print("Training for %d epoch(s)..." % n_epochs)
     for epoch_i in range(1, n_epochs + 1):
 
-        for data, label in loader:
-            # forward, back prop
+        if stop >= early_stop_count:
+            print(f'Stop converging for {stop} epochs, early stop triggered.')
+            break
+
+        for data, _ in loader:
             if TRAIN_ON_MULTI_GPUS:
-                data, label = data.cuda(), label.cuda()
+                data = data.cuda()
             elif torch.cuda.is_available():
-                data, label = data.to(device), label.to(device)
+                data = data.to(device)
 
             optimizer.zero_grad()
             output = model(data)
-            loss = criterion(output, label)
+            loss = criterion(output, data)
             loss.backward()
             optimizer.step()
+            losses.append(loss.item())
 
-            # record loss
-            losses.append(loss.item() * data.size(0))
+            if epoch_i % show_every_n_epochs == 0:
+                avg_loss = np.mean(losses)
+                print(f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.6f}')
 
-        avg_loss = np.mean(losses)
-        # printing loss stats
-        print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.4f}', flush=True)
-        # clear
-        losses = []
+                if avg_loss < valid_loss_min:
 
-    torch.save(model.state_dict(), 'trained_models' + '/' +
-               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
+                    print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. Saving...')
 
-    # returns a trained model
+                    # saving state_dict of model
+                    torch.save(model.state_dict(), 'trained_models' + '/' +
+                               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}' +
+                               f'-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
+
+                    loss_min = avg_loss
+                    stop = 0
+                else:
+                    stop += 1
+
+                losses = []
+
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
     return model
@@ -755,16 +764,16 @@ def train_vae(model, optimizer, criterion, n_epochs,
             optimizer.step()
 
             # record loss
-            losses.append(loss.item() / hyps['bs'])
-            bces.append(bce.item() / hyps['bs'])
-            klds.append(kld.item() / hyps['bs'])
+            losses.append(loss.item())
+            bces.append(bce.item())
+            klds.append(kld.item())
 
         al = np.mean(losses)
         ab = np.mean(bces)
         ak = np.mean(klds)
         # printing loss stats
         print(
-            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {al:.4f} | BCE: {ab:.4f} | KLD: {ak:.4f}', flush=True)
+            f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {al:.6f} | BCE: {ab:.6f} | KLD: {ak:.6f}', flush=True)
         # clear
         losses = []
 
@@ -778,7 +787,7 @@ def train_vae(model, optimizer, criterion, n_epochs,
 
 
 def run_encoder_training(model_name, epochs, data_dir, mode='od',
-                         hd=512, lr=0.001, bs=64, dp=0.5, device='cuda:0'):
+                         hd=512, lr=0.001, bs=64, device='cuda:0'):
     '''
     Main function of auto encoder.
 
@@ -786,9 +795,11 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
         model_name: model name
         epochs: number of epochs to train
         data_dir: location of training data
+        mode: pnf or od
         hd: hidden dim
         lr: learning_rate
         bs: batch_size
+        device: where to train the model
     '''
     # Training parameters
     epochs = epochs
@@ -818,7 +829,11 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
 
     # Initialize data loaders
     # LSTM data loader
-    if model_name in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE']:
+    if model_name in ['ConvAutoEncoder',
+                      'ConvAutoEncoderShallow',
+                      'VAE',
+                      'SparseAutoEncoder',
+                      'SparseConvAutoEncoder']:
         data_set = ConvEncoderDatasetRAM(data_dir)
     else:
         data_set = EncoderDatasetRAM(data_dir)
@@ -839,10 +854,13 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
     # initialize model
+    # This part is currently very mixed. Change in the future.
     if model_name in ['ConvAutoEncoder', 'ConvAutoEncoderShallow']:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], mode=hyps['md'])
     elif model_name == 'VAE':
-        model = models.__dict__[model_name](hyps['md'], h_dim=hyps['hd'], z_dim=32)
+        model = models.__dict__[model_name](hyps['md'], hidden_dim=hyps['hd'], z_dim=32)
+    elif model_name in ['SparseConvAutoEncoder', 'SparseAutoEncoder']:
+        model = models.__dict__[model_name](hyps['md'], hidden_dim=hyps['hd'])
     else:
         model = models.__dict__[model_name](hyps['is'], hyps['os'], hidden_dim=hyps['hd'])
     print(model)
@@ -869,12 +887,12 @@ def run_encoder_training(model_name, epochs, data_dir, mode='od',
                                   hyps, device=device)
 
     else:
-        criterion = nn.L1Loss()
+        criterion = nn.MSELoss()
         # criterion = nn.L1Loss()
         # criterion = dich_mse_loss
-    # start training
-        trained_model = train_encoder(model, optimizer, criterion, epochs, loader,
-                                      hyps, device=device)
+        # start training
+        trained_model = train_encoder(
+            model, optimizer, criterion, epochs, loader, hyps, device=device)
 
     return trained_model
 
@@ -885,6 +903,6 @@ if __name__ == '__main__':
     #                         hd=4096, nl=2, dp=0.5, device='cuda:1')
     # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
 
-    data_dir = 'data/2018/15min/tensors'
-    run_encoder_training('VAE', 100, data_dir,
-                         mode='od', lr=0.001, hd=128, device='cuda:0')
+    data_dir = 'data/2018_15min/tensors'
+    run_encoder_training('SparseAutoEncoder', 1000, data_dir,
+                         mode='pnf', lr=0.001, hd=128, bs=64, device='cuda:0')
