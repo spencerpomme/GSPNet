@@ -739,9 +739,9 @@ def train_encoder(model, optimizer, criterion, n_epochs, loader, hyps,
                 avg_loss = np.mean(losses)
                 print(f'Epoch: {epoch_i:>4}/{n_epochs:<4} | Loss: {avg_loss:.6f}')
 
-                if avg_loss < valid_loss_min:
+                if avg_loss < loss_min:
 
-                    print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. Saving...')
+                    print(f'Valid Loss {loss_min:.6f} -> {avg_loss:.6f}. Saving...')
 
                     # saving state_dict of model
                     save_model(model, 'trained_models', hyps)
