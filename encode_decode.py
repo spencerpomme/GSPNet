@@ -66,7 +66,7 @@ def regen(model, truths, dest, mode, device='cuda:0'):
     '''
     for i, tensor in enumerate(truths):
         tensor = tensor.type(torch.float)
-        if 'conv1' in dir(model):
+        if 'is_conv' in dir(model):
             tensor = torch.unsqueeze(tensor, 0)
             tensor = tensor.permute(0,3,2,1)
         else:
@@ -93,7 +93,7 @@ def load(path: str, size: int):
 
     # select a random place to start draw the prime
     # np.random.seed(0)
-    start = np.random.randint(29000, len(paths)-size)
+    start = np.random.randint(int(len(paths) * 0.8), len(paths)-size)
     print(f'Testing states id: {start} -> {start+size}')
     # load actual truths states, for test prediction accuracy visually
     for fp in paths[start: start+size]:
@@ -225,6 +225,11 @@ def reconstruct(model_path: str, hyps: dict, device='cuda:0'):
         model = models.__dict__[hyps['mn']](
             mode=hyps['md']
         )
+    elif hyps['mn'] == 'SparseAutoEncoder':
+        model = models.__dict__[hyps['mn']](
+            mode=hyps['md'],
+            hidden_dim=hyps['hd']
+        )
     else:
         model = models.__dict__[hyps['mn']](
             hyps['is'],
@@ -269,6 +274,6 @@ def run(model_path, data_path, dest_path, size, mode, device):
 if __name__ == '__main__':
 
     model_path = 'trained_models/mnVAE-is4761-os4761-bs64-lr0.001-hd128-mdod.pt'
-    data_path = 'data/2018/15min/tensors'
+    data_path = 'data/2018_15min/tensors'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 8, 'od', 'cuda:0')
+    run(model_path, data_path, dest_path, 8, 'pnf', 'cuda:0')
