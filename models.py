@@ -66,7 +66,7 @@ def decide_label(file: str):
 
 # models
 # RNN models to do sequential prediction:
-class VanillaStateLSTM(nn.Module):
+class VanillaLSTM(nn.Module):
     '''
     The baseline model.
 
@@ -166,7 +166,7 @@ class VanillaStateLSTM(nn.Module):
         return hidden
 
 
-class VanillaStateGRU(nn.Module):
+class VanillaGRU(nn.Module):
     '''
     The baseline model.
 
@@ -266,7 +266,7 @@ class VanillaStateGRU(nn.Module):
 
 
 # TODO: finish this model
-class EmbedStateRNN(nn.Module):
+class EmbedRNN(nn.Module):
     '''
     The baseline model.
 
@@ -506,6 +506,9 @@ def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_no
 
 
 class Discriminator(nn.Module):
+    '''
+    Discriminator of GAN.
+    '''
 
     def __init__(self, conv_dim=32):
         super(Discriminator, self).__init__()
@@ -541,6 +544,9 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
+    '''
+    Generator of GAN
+    '''
 
     def __init__(self, z_size, conv_dim=32):
         super(Generator, self).__init__()
@@ -579,7 +585,7 @@ class AutoEncoder(nn.Module):
     '''
 
     def __init__(self, input_size, output_size, hidden_dim=512,
-                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
+                 train_on_gpu=True, device='cuda:0'):
         '''
         Auto encoder initialization.
 
@@ -587,14 +593,12 @@ class AutoEncoder(nn.Module):
             input_size:     dimention of state vector (flattened 3d tensor)
             output_size:    the same shape of input_size
             hidden_dim:     hidden size
-            drop_prob:      drop out rate
             train_on_gpu:   whether use GPU or not
             device:         where to put the model
         '''
         super().__init__()
         self.output_size = output_size
         self.hidden_dim = hidden_dim
-        self.drop_prob = drop_prob
         self.train_on_gpu = train_on_gpu
         self.dvc = device
 
@@ -630,7 +634,7 @@ class ConvAutoEncoderShallow(nn.Module):
     A CNN autoencoder model, without any preprocessing to the inputs.
     '''
 
-    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
+    def __init__(self, output_size, mode):
         '''
         Auto encoder initialization.
 
@@ -644,8 +648,6 @@ class ConvAutoEncoderShallow(nn.Module):
         super(ConvAutoEncoderShallow, self).__init__()
         self.is_conv = True
         self.output_size = output_size
-        self.train_on_gpu = train_on_gpu
-        self.dvc = device
 
         # define encode and decode layers
         if mode == 'od':
@@ -686,22 +688,17 @@ class ConvAutoEncoder(nn.Module):
     A CNN autoencoder model, without any preprocessing to the inputs.
     '''
 
-    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
+    def __init__(self, output_size, mode):
         '''
         Auto encoder initialization.
 
         Args:
-            input_size:     dimention of state vector (flattened 3d tensor)
             output_size:    the same shape of input_size
             mode:           either `od`(greyscale) or `pnf`(rgb)
-            train_on_gpu:   whether use GPU or not
-            device:         where to put the model
         '''
         super(ConvAutoEncoder, self).__init__()
         self.is_conv = True
         self.output_size = output_size
-        self.train_on_gpu = train_on_gpu
-        self.dvc = device
 
         # define encode and decode layers
         if mode == 'od':
@@ -719,11 +716,6 @@ class ConvAutoEncoder(nn.Module):
     def forward(self, x):
         '''
         Pass tensor into the encoder and get it out from the decoder.
-
-        Args:
-            x:      input state vector
-        Returns:
-            out:    output of current time step
         '''
         batch_size = x.size(0)
         x = F.relu(self.conv1(x))
@@ -744,9 +736,13 @@ class VAE(nn.Module):
     Variational Auto Encoder
     '''
 
-    def __init__(self, mode='pnf', hidden_dim=1024, z_dim=32):
+    def __init__(self, mode='pnf', z_dim=32):
         '''
         Initialization of VAE model.
+
+        Args:
+            mode: pnf or od
+            z_dim: sample dimension
         '''
         if mode == 'pnf':
             self.img_chans = 3
@@ -769,25 +765,20 @@ class VAE(nn.Module):
         self.t_conv1 = nn.ConvTranspose2d(32, self.img_chans, kernel_size=7, stride=2)
 
     def forward(self, x):
-        # print('x.shape -> ', x.shape)
+        '''
+        Forward pass
+        '''
         x = F.relu(self.conv1(x))
-        # print('x.shape -> ', x.shape)
         x = F.relu(self.conv2(x))
-        # print('x.shape -> ', x.shape)
         h = x.view(x.size(0), -1)
-        # print('h.shape -> ', h.shape)
 
         mu, logvar = self.fc1(h), self.fc2(h)
         std = logvar.mul(0.5).exp_()
         esp = torch.randn(*mu.size()).cuda()
         z = mu + std * esp
-        # print('z.shape -> ', z.shape)
         z = self.fc3(z)
-        # print('z.shape -> ', z.shape)
         z = z.view(z.size(0), 8, 16, 16)
-        # print('z.shape -> ', z.shape)
         z = F.relu(self.t_conv2(z))
-        # print('z.shape -> ', z.shape)
         z = torch.sigmoid(self.t_conv1(z))
 
         return z, mu, logvar
@@ -797,7 +788,8 @@ class SparseConvAutoEncoder(nn.Module):
     '''
     Sparse autoencoder.
     '''
-    def __init__(self, mode, hidden_dim=1024):
+
+    def __init__(self, mode='pnf', hidden_dim=1024):
         '''
         Initialization of VAE model.
         '''
@@ -812,27 +804,30 @@ class SparseConvAutoEncoder(nn.Module):
         self.is_conv = True
 
         super(SparseConvAutoEncoder, self).__init__()
-        self.encoder = nn.Sequential(nn.Conv2d(self.img_chans, 16,
-                                               kernel_size=7, stride=2),
-                                     nn.ReLU(),
-                                     nn.Conv2d(16, 32, kernel_size=4,
-                                               stride=2, padding=1),
-                                     nn.ReLU(),
-                                     Flatten(),
-                                     nn.Linear(32*16*16, self.hidden_dim),
-                                     nn.ReLU())
+        self.encoder = nn.Sequential(
+            nn.Conv2d(self.img_chans, 16, kernel_size=7, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            Flatten(),
+            nn.Linear(32*16*16, self.hidden_dim),
+            nn.ReLU()
+        )
 
-        self.decoder = nn.Sequential(nn.Linear(self.hidden_dim, 32*16*16),
-                                     nn.ReLU(),
-                                     UnFlatten(),
-                                     nn.ConvTranspose2d(
-                                         32, 16, kernel_size=2, stride=2),
-                                     nn.ReLU(),
-                                     nn.ConvTranspose2d(16, self.img_chans,
-                                                        kernel_size=7, stride=2),
-                                     nn.Sigmoid())
+        self.decoder = nn.Sequential(
+            nn.Linear(self.hidden_dim, 32*16*16),
+            nn.ReLU(),
+            UnFlatten(),
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
+            nn.ReLU(),
+            nn.ConvTranspose2d(16, self.img_chans, kernel_size=7, stride=2),
+            nn.Sigmoid()
+        )
 
     def forward(self, x):
+        '''
+        Forward pass.
+        '''
         x = self.encoder(x)
         x = L1Penality.apply(x, 0.5)
         x = self.decoder(x)
@@ -844,7 +839,7 @@ class SparseAutoEncoder(nn.Module):
     Sparse autoencoder.
     '''
 
-    def __init__(self, mode, hidden_dim=1024):
+    def __init__(self, mode='pnf', hidden_dim=1024):
         '''
         Initialization of VAE model.
         '''
@@ -860,15 +855,21 @@ class SparseAutoEncoder(nn.Module):
 
         super(SparseAutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
-                                     Flatten(),
-                                     nn.Linear(3*69*69, self.hidden_dim),
-                                     nn.Tanh())
+            Flatten(),
+            nn.Linear(3*69*69, self.hidden_dim),
+            nn.Tanh()
+        )
 
-        self.decoder = nn.Sequential(nn.Linear(self.hidden_dim, 3*69*69),
-                                     nn.Sigmoid(),
-                                     UnFlatten())
+        self.decoder = nn.Sequential(
+            nn.Linear(self.hidden_dim, 3*69*69),
+            nn.Sigmoid(),
+            UnFlatten()
+        )
 
     def forward(self, x):
+        '''
+        Forward pass.
+        '''
         x = self.encoder(x)
         x = L1Penality.apply(x, 0.9)
         x = self.decoder(x)
