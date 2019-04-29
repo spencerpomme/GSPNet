@@ -63,8 +63,8 @@ def save_model(model, dest: str, hyps: dict):
         hyps: hyperparameters of the trained model
     '''
     name = ''
-    mn = f'mn{hyps["mn"]}'
-    name += mn
+    mn = hyps["mn"]
+    name += f'mn{hyps["mn"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
               'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
         name += f'-os{hyps["os"]}'
@@ -96,8 +96,8 @@ def get_curve_name(dest: str, hyps: dict):
         hyps: hyperparameters of the trained model
     '''
     name = ''
-    mn = f'mn{hyps["mn"]}'
-    name += mn
+    mn = hyps["mn"]
+    name += f'mn{hyps["mn"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
               'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
         name += f'-os{hyps["os"]}'
@@ -960,6 +960,5 @@ if __name__ == '__main__':
     data_dir = f'data/{datasets["pnf1815"]}/tensors'
 
     # run_recursive_training()
-    run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2,
-                            device='cuda:1')
-    # run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.01, mode='pnf', hd=64, device='cuda:0')
+    # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
+    run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.01, mode='pnf', hd=128, device='cuda:1')
