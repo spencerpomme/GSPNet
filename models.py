@@ -464,10 +464,31 @@ class MLPClassifier(nn.Module):
 
 
 # GAN model:
+# helper conv function
+def conv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_norm=True):
+    '''
+    Creates a convolutional layer, with optional batch normalization.
+    '''
+    layers = []
+    conv_layer = nn.Conv2d(in_channels, out_channels,
+                           kernel_size, stride, padding, bias=False)
+
+    # append conv layer
+    layers.append(conv_layer)
+
+    if batch_norm:
+        # append batchnorm layer
+        layers.append(nn.BatchNorm2d(out_channels))
+
+    # using Sequential container
+    return nn.Sequential(*layers)
+
+
 # helper deconv function
 def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_norm=True):
-    """Creates a transposed-convolutional layer, with optional batch normalization.
-    """
+    '''
+    Creates a transposed-convolutional layer, with optional batch normalization.
+    '''
     # create a sequence of transpose + optional batch norm layers
     layers = []
     transpose_conv_layer = nn.ConvTranspose2d(in_channels, out_channels,
@@ -482,6 +503,17 @@ def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_no
     return nn.Sequential(*layers)
 
 
+def scale(x, feature_range=(-1, 1)):
+    ''' Scale takes in an image x and returns that image, scaled
+       with a feature_range of pixel values from -1 to 1. 
+       This function assumes that the input x is already scaled from 0-1.'''
+    # assume x is scaled to (0, 1)
+    # scale to feature_range and return scaled x
+    min, max = feature_range
+    x = x * (max - min) + min
+    return x
+
+
 class Discriminator(nn.Module):
     '''
     Discriminator of GAN.
@@ -494,17 +526,17 @@ class Discriminator(nn.Module):
         # complete init function
         self.conv_dim = conv_dim
 
-        # 32x32 input
+        # 69x69 input
         # first layer, no batch_norm
-        self.conv1 = conv(3, conv_dim, 4, batch_norm=False)
-        # 16x16 out
-        self.conv2 = conv(conv_dim, conv_dim*2, 4)
+        self.conv1 = conv(3, conv_dim, 5, padding=0, stride=4, batch_norm=False)
+        # 17x17 out
+        self.conv2 = conv(conv_dim, conv_dim*2, 3, padding=0)
         # 8x8 out
-        self.conv3 = conv(conv_dim*2, conv_dim*4, 4)
-        # 4x4 out
+        self.conv3 = conv(conv_dim*2, conv_dim*4, 4, padding=0)
+        # 3x3 out
 
         # final, fully-connected layer
-        self.fc = nn.Linear(conv_dim*4*4*4, 1)
+        self.fc = nn.Linear(conv_dim*4*3*3, 1)
 
     def forward(self, x):
         # all hidden layers + leaky relu activation
@@ -513,7 +545,7 @@ class Discriminator(nn.Module):
         out = F.leaky_relu(self.conv3(out), 0.2)
 
         # flatten
-        out = out.view(-1, self.conv_dim*4*4*4)
+        out = out.view(-1, self.conv_dim*4*3*3)
 
         # final output layer
         out = self.fc(out)
@@ -533,17 +565,18 @@ class Generator(nn.Module):
         self.conv_dim = conv_dim
 
         # first, fully-connected layer
-        self.fc = nn.Linear(z_size, conv_dim*4*4*4)
+        self.fc = nn.Linear(z_size, conv_dim*4*3*3)
 
         # transpose conv layers
-        self.t_conv1 = deconv(conv_dim*4, conv_dim*2, 4)
-        self.t_conv2 = deconv(conv_dim*2, conv_dim, 4)
-        self.t_conv3 = deconv(conv_dim, 3, 4, batch_norm=False)
+        self.t_conv1 = deconv(conv_dim*4, conv_dim*2, 4, padding=0)
+        self.t_conv2 = deconv(conv_dim*2, conv_dim, 3, padding=0)
+        self.t_conv3 = deconv(conv_dim, 3, 5, padding=0,
+                              stride=4, batch_norm=False)
 
     def forward(self, x):
         # fully-connected + reshape
         out = self.fc(x)
-        out = out.view(-1, self.conv_dim*4, 4, 4)  # (batch_size, depth, 4, 4)
+        out = out.view(-1, conv_dim*4, 3, 3)  # (batch_size, depth, 4, 4)
 
         # hidden transpose conv layers + relu
         out = F.relu(self.t_conv1(out))
@@ -786,7 +819,7 @@ class SparseConvAutoEncoder(nn.Module):
             nn.ReLU(),
             nn.Conv2d(16, 32, kernel_size=4, stride=2, padding=1),
             nn.ReLU(),
-            Flatten(),
+            Flattencv(),
             nn.Linear(32*16*16, self.hidden_dim),
             nn.ReLU()
         )
@@ -794,7 +827,7 @@ class SparseConvAutoEncoder(nn.Module):
         self.decoder = nn.Sequential(
             nn.Linear(self.hidden_dim, 32*16*16),
             nn.ReLU(),
-            UnFlatten(),
+            UnFlattencv(),
             nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),
             nn.ReLU(),
             nn.ConvTranspose2d(16, self.img_chans, kernel_size=7, stride=2),
@@ -809,6 +842,18 @@ class SparseConvAutoEncoder(nn.Module):
         x = L1Penality.apply(x, 0.5)
         x = self.decoder(x)
         return x
+
+
+class Flattencv(nn.Module):
+    def forward(self, input):
+        # print(f'flatten input shape -> {input.shape}')
+        return input.view(input.size(0), -1)
+
+
+class UnFlattencv(nn.Module):
+    def forward(self, input):
+        # print(f'input.shape -> {input.shape}')
+        return input.view(input.size(0), 32, 16, 16)
 
 
 class SparseAutoEncoder(nn.Module):
@@ -833,12 +878,12 @@ class SparseAutoEncoder(nn.Module):
         super(SparseAutoEncoder, self).__init__()
         self.encoder = nn.Sequential(
             Flatten(),
-            nn.Linear(3*69*69, self.hidden_dim),
+            nn.Linear(self.img_chans*69*69, self.hidden_dim),
             nn.ReLU()
         )
 
         self.decoder = nn.Sequential(
-            nn.Linear(self.hidden_dim, 3*69*69),
+            nn.Linear(self.hidden_dim, self.img_chans*69*69),
             UnFlatten()
         )
 
@@ -854,12 +899,14 @@ class SparseAutoEncoder(nn.Module):
 
 class Flatten(nn.Module):
     def forward(self, input):
+        print(f'flatten input shape -> {input.shape}')
         return input.view(input.size(0), -1)
 
 
 class UnFlatten(nn.Module):
     def forward(self, input):
-        return input.view(input.size(0), 3, 69, 69)
+        print(f'input.shape -> {input.shape}')
+        return input.view(input.size(0), 1, 69, 69)
 
 
 if __name__ == '__main__':
