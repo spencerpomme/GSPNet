@@ -41,29 +41,6 @@ from glob import glob, iglob
 from losses import L1Penality
 
 
-# util functions
-def decide_label(file: str):
-    '''
-    This function hard codes classification criteria to label the tensors.
-
-    Args:
-        file: a file name string
-        nc: number of classes
-    Returns:
-        label: the class label of a given tensor file
-    '''
-    pattern = re.compile(
-        '^(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)-(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)')
-
-    file = file.split('\\')[1]
-    i = int(pattern.findall(file)[0][3])
-    # 3-hour-a-class
-    labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
-              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-    label = labels[i]
-    return label
-
-
 # models
 # RNN models to do sequential prediction:
 class VanillaLSTM(nn.Module):
