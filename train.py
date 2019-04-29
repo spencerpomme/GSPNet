@@ -62,28 +62,60 @@ def save_model(model, dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
-    mn = f'mn{hyps['mn']}'
+    mn = f'mn{hyps["mn"]}'
     name += mn
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
               'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
-        name += f'-os{hyps['os']}'
+        name += f'-os{hyps["os"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
-        name += f'-is{hyps['is']}'
+        name += f'-is{hyps["is"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
               'SparseAutoEncoder']:
-        name += f'-hd{hyps['hd']}'
+        name += f'-hd{hyps["hd"]}'
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
-        name += f'-nl{hyps['nl']}-dp{hyps['dp']}-sl{hyps['sl']}'
+        name += f'-nl{hyps["nl"]}-dp{hyps["dp"]}-sl{hyps["sl"]}'
     if mn in ['ConvClassifier', 'MLPClassifier']:
-        name += f'-nc{hyps['nc']}'
+        name += f'-nc{hyps["nc"]}'
     if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
               'SparseAutoEncoder']:
-        name += f'-md{hyps['md']}'
+        name += f'-md{hyps["md"]}'
     if mn in ['VAE']:
-        name += f'-zd{hyps['z_dim']}'
+        name += f'-zd{hyps["z_dim"]}'
 
     name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'
     torch.save(model.state_dict(), dest + '/' + name)
+
+
+def get_curve_name(dest: str, hyps: dict):
+    '''
+    Generate training loss curve image name.
+
+    Args:
+        dest: folder to save trained model
+        hyps: hyperparameters of the trained model
+    '''
+    mn = f'mn{hyps["mn"]}'
+    name += mn
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
+        name += f'-os{hyps["os"]}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
+        name += f'-is{hyps["is"]}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'SparseAutoEncoder']:
+        name += f'-hd{hyps["hd"]}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
+        name += f'-nl{hyps["nl"]}-dp{hyps["dp"]}-sl{hyps["sl"]}'
+    if mn in ['ConvClassifier', 'MLPClassifier']:
+        name += f'-nc{hyps["nc"]}'
+    if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
+              'SparseAutoEncoder']:
+        name += f'-md{hyps["md"]}'
+    if mn in ['VAE']:
+        name += f'-zd{hyps["z_dim"]}'
+
+    name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.png'
+    return dest + '/' + name
 
 
 # data feeder, type 2, deprecated
@@ -261,7 +293,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     return model, (tl, vl)
 
 
-def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc
+def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc,
                             dp=0.5, device='cuda:0'):
     '''
     Main function of cnn classifier training.
@@ -296,9 +328,6 @@ def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc
         'nc': nc,
         'dp': drop_prob
     }
-
-    # Initialize data loaders
-    data_dir = 'data/2018_15min/tensors'
 
     # LSTM data loader
     data_set = SnapshotClassificationDatasetRAM(data_dir)
@@ -352,10 +381,8 @@ def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc
     valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
     plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
 
-    plt.savefig(
-        'trained_models' +
-        f'/mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.png'
-    )
+    curve_name = get_curve_name('trained_models', hyps)
+    plt.savefig(curve_name)
     plt.show()
 
 
@@ -918,10 +945,19 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
 
 if __name__ == '__main__':
 
-    # run_recursive_training('VanillaStateGRU', 5, sl=24, bs=128, lr=0.001,
-    #                         hd=4096, nl=2, dp=0.5, device='cuda:1')
-    # run_classifier_training(100, 2, 0.1, 0, lr=0.001, bs=1024, dp=0.1)
+    datsets = {
+        "od1815": '2018/15min',
+        "od1812": '2018/12min',
+        "pnf1815": '2018_15min',
+        "pnf1812": '2018_12min',
+        "od1715": '2017/15min',
+        "od1712": '2017/12min',
+        "pnf1715": '2017_15min',
+        "pnf1712": '2017_12min'
+    }
 
-    data_dir = 'data/2018_15min/tensors'
-    run_encoder_training('SparseAutoEncoder', 1000, data_dir,
-                         mode='pnf', lr=0.001, hd=128, bs=64, device='cuda:0')
+    data_dir = f'data/{datasets["pnf1815"]}/tensors'
+    # run_recursive_training()
+    # run_classifier_training()
+    run_encoder_training('SparseAutoEncoder', data_dir, 100, 256, 0.8, 0.001,
+                         mode='pnf', hd=64, device='cuda:0')
