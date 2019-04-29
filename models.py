@@ -38,6 +38,8 @@ from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 from glob import glob, iglob
 
+from losses import L1Penality
+
 
 # util functions
 def decide_label(file: str):
@@ -263,170 +265,6 @@ class VanillaStateGRU(nn.Module):
         return hidden
 
 
-class AutoEncoder(nn.Module):
-    '''
-    An autoencoder model, without any preprocessing to the inputs.
-    '''
-
-    def __init__(self, input_size, output_size, hidden_dim=512,
-                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
-        '''
-        Auto encoder initialization.
-
-        Args:
-            input_size:     dimention of state vector (flattened 3d tensor)
-            output_size:    the same shape of input_size
-            hidden_dim:     hidden size
-            drop_prob:      drop out rate
-            train_on_gpu:   whether use GPU or not
-            device:         where to put the model
-        '''
-        super().__init__()
-        self.output_size = output_size
-        self.hidden_dim = hidden_dim
-        self.drop_prob = drop_prob
-        self.train_on_gpu = train_on_gpu
-        self.dvc = device
-
-        # define the layers
-        self.encoder = nn.Linear(input_size, hidden_dim)
-        self.l1 = nn.Linear(hidden_dim, hidden_dim//2)
-        self.l2 = nn.Linear(hidden_dim//2, hidden_dim)
-        self.decoder = nn.Linear(hidden_dim, self.output_size)
-
-    def forward(self, x):
-        '''
-        Pass tensor into the encoder and get it out from the decoder.
-
-        Args:
-            x:      input state vector (flattened)
-        Returns:
-            out:    output of current time step
-        '''
-        batch_size = x.size(0)
-        x = F.relu(self.encoder(x))
-        x = F.relu(self.l1(x))
-        x = F.relu(self.l2(x))
-        out = self.decoder(x)
-
-        # reshape to be batch_size first
-        out = out.view(batch_size, -1, self.output_size)
-
-        return out
-
-
-class ConvAutoEncoderShallow(nn.Module):
-    '''
-    A CNN autoencoder model, without any preprocessing to the inputs.
-    '''
-
-    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
-        '''
-        Auto encoder initialization.
-
-        Args:
-            input_size:     dimention of state vector
-            output_size:    the same shape of input_size
-            mode:           either `od`(greyscale) or `pnf`(rgb)
-            train_on_gpu:   whether use GPU or not
-            device:         where to put the model
-        '''
-        super(ConvAutoEncoderShallow, self).__init__()
-        self.output_size = output_size
-        self.train_on_gpu = train_on_gpu
-        self.dvc = device
-
-        # define encode and decode layers
-        if mode == 'od':
-            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)
-            self.conv_t1 = nn.ConvTranspose2d(
-                16, 1, 2, stride=2, output_padding=1)
-        elif mode == 'pnf':
-            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)
-            self.conv_t1 = nn.ConvTranspose2d(
-                16, 3, 2, stride=2, output_padding=1)
-
-        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
-        self.conv_t2 = nn.ConvTranspose2d(4, 16, 4, stride=2)
-
-    def forward(self, x):
-        '''
-        Pass tensor into the encoder and get it out from the decoder.
-
-        Args:
-            x:      input state vector (flattened)
-        Returns:
-            out:    output of current time step
-        '''
-        batch_size = x.size(0)
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv_t2(x))
-        out = self.conv_t1(x)
-
-        # reshape to be batch_size first
-        out = out.view(batch_size, -1, self.output_size)
-
-        return out
-
-
-class ConvAutoEncoder(nn.Module):
-    '''
-    A CNN autoencoder model, without any preprocessing to the inputs.
-    '''
-
-    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
-        '''
-        Auto encoder initialization.
-
-        Args:
-            input_size:     dimention of state vector (flattened 3d tensor)
-            output_size:    the same shape of input_size
-            mode:           either `od`(greyscale) or `pnf`(rgb)
-            train_on_gpu:   whether use GPU or not
-            device:         where to put the model
-        '''
-        super(ConvAutoEncoder, self).__init__()
-        self.output_size = output_size
-        self.train_on_gpu = train_on_gpu
-        self.dvc = device
-
-        # define encode and decode layers
-        if mode == 'od':
-            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)             # od mode
-            self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)  # pnf mode
-        elif mode == 'pnf':
-            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)             # od mode
-            self.t_conv1 = nn.ConvTranspose2d(16, 3, 7, stride=2)  # pnf mode
-
-        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
-        self.conv3 = nn.Conv2d(4, 2, 4, stride=2, padding=1)
-        self.t_conv3 = nn.ConvTranspose2d(2, 4, 2, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(4, 16, 2, stride=2)
-
-    def forward(self, x):
-        '''
-        Pass tensor into the encoder and get it out from the decoder.
-
-        Args:
-            x:      input state vector
-        Returns:
-            out:    output of current time step
-        '''
-        batch_size = x.size(0)
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.t_conv3(x))
-        x = F.relu(self.t_conv2(x))
-        out = self.t_conv1(x)
-
-        # reshape to be batch_size first
-        out = out.view(batch_size, -1, self.output_size)
-
-        return out
-
-
 # TODO: finish this model
 class EmbedStateRNN(nn.Module):
     '''
@@ -555,6 +393,7 @@ class ConvClassifier(nn.Module):
             n_classes: number of classes
         '''
         super(ConvClassifier, self).__init__()
+        self.is_conv = True
         self.n_classes = n_classes  # (4 x 24) snapshots per day
         # define conv layers
         # in: (69 x 69) out: (33 x 33)
@@ -670,6 +509,7 @@ class Discriminator(nn.Module):
 
     def __init__(self, conv_dim=32):
         super(Discriminator, self).__init__()
+        self.is_conv = True
 
         # complete init function
         self.conv_dim = conv_dim
@@ -704,6 +544,7 @@ class Generator(nn.Module):
 
     def __init__(self, z_size, conv_dim=32):
         super(Generator, self).__init__()
+        self.is_conv = True
 
         # complete init function
         self.conv_dim = conv_dim
@@ -732,24 +573,191 @@ class Generator(nn.Module):
         return out
 
 
+class AutoEncoder(nn.Module):
+    '''
+    An autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, hidden_dim=512,
+                 drop_prob=0.5, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size
+            hidden_dim:     hidden size
+            drop_prob:      drop out rate
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super().__init__()
+        self.output_size = output_size
+        self.hidden_dim = hidden_dim
+        self.drop_prob = drop_prob
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define the layers
+        self.encoder = nn.Linear(input_size, hidden_dim)
+        self.l1 = nn.Linear(hidden_dim, hidden_dim//2)
+        self.l2 = nn.Linear(hidden_dim//2, hidden_dim)
+        self.decoder = nn.Linear(hidden_dim, self.output_size)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector (flattened)
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.encoder(x))
+        x = F.relu(self.l1(x))
+        x = F.relu(self.l2(x))
+        out = self.decoder(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
+class ConvAutoEncoderShallow(nn.Module):
+    '''
+    A CNN autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector
+            output_size:    the same shape of input_size
+            mode:           either `od`(greyscale) or `pnf`(rgb)
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super(ConvAutoEncoderShallow, self).__init__()
+        self.is_conv = True
+        self.output_size = output_size
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define encode and decode layers
+        if mode == 'od':
+            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)
+            self.conv_t1 = nn.ConvTranspose2d(
+                16, 1, 2, stride=2, output_padding=1)
+        elif mode == 'pnf':
+            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)
+            self.conv_t1 = nn.ConvTranspose2d(
+                16, 3, 2, stride=2, output_padding=1)
+
+        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
+        self.conv_t2 = nn.ConvTranspose2d(4, 16, 4, stride=2)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector (flattened)
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv_t2(x))
+        out = self.conv_t1(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
+class ConvAutoEncoder(nn.Module):
+    '''
+    A CNN autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, input_size, output_size, mode, train_on_gpu=True, device='cuda:0'):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector (flattened 3d tensor)
+            output_size:    the same shape of input_size
+            mode:           either `od`(greyscale) or `pnf`(rgb)
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super(ConvAutoEncoder, self).__init__()
+        self.is_conv = True
+        self.output_size = output_size
+        self.train_on_gpu = train_on_gpu
+        self.dvc = device
+
+        # define encode and decode layers
+        if mode == 'od':
+            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)             # od mode
+            self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)  # pnf mode
+        elif mode == 'pnf':
+            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)             # od mode
+            self.t_conv1 = nn.ConvTranspose2d(16, 3, 7, stride=2)  # pnf mode
+
+        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(4, 2, 4, stride=2, padding=1)
+        self.t_conv3 = nn.ConvTranspose2d(2, 4, 2, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(4, 16, 2, stride=2)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.t_conv3(x))
+        x = F.relu(self.t_conv2(x))
+        out = self.t_conv1(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, -1, self.output_size)
+
+        return out
+
+
 class VAE(nn.Module):
     '''
     Variational Auto Encoder
     '''
 
-    def __init__(self, mode='pnf', h_dim=1024, z_dim=32):
+    def __init__(self, mode='pnf', hidden_dim=1024, z_dim=32):
         '''
         Initialization of VAE model.
         '''
         if mode == 'pnf':
-            self.image_channels = 3
+            self.img_chans = 3
         elif mode == 'od':
-            self.image_channels = 1
+            self.img_chans = 1
         else:
             raise ValueError('Wrong mode. Only pnf and od are supported.')
         super(VAE, self).__init__()
+        self.is_conv = True
 
-        self.conv1 = nn.Conv2d(self.image_channels, 32,
+        self.conv1 = nn.Conv2d(self.img_chans, 32,
                                kernel_size=7, stride=2)
         self.conv2 = nn.Conv2d(32, 8, kernel_size=4, stride=2, padding=1)
 
@@ -758,8 +766,7 @@ class VAE(nn.Module):
         self.fc3 = nn.Linear(z_dim, 8*16*16)
 
         self.t_conv2 = nn.ConvTranspose2d(8, 32, kernel_size=2, stride=2)
-        self.t_conv1 = nn.ConvTranspose2d(32, self.image_channels,
-                                          kernel_size=7, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(32, self.img_chans, kernel_size=7, stride=2)
 
     def forward(self, x):
         # print('x.shape -> ', x.shape)
@@ -784,6 +791,98 @@ class VAE(nn.Module):
         z = torch.sigmoid(self.t_conv1(z))
 
         return z, mu, logvar
+
+
+class SparseConvAutoEncoder(nn.Module):
+    '''
+    Sparse autoencoder.
+    '''
+    def __init__(self, mode, hidden_dim=1024):
+        '''
+        Initialization of VAE model.
+        '''
+        if mode == 'pnf':
+            self.img_chans = 3
+        elif mode == 'od':
+            self.img_chans = 1
+        else:
+            raise ValueError('Wrong mode. Only pnf and od are supported.')
+
+        self.hidden_dim = hidden_dim
+        self.is_conv = True
+
+        super(SparseConvAutoEncoder, self).__init__()
+        self.encoder = nn.Sequential(nn.Conv2d(self.img_chans, 16,
+                                               kernel_size=7, stride=2),
+                                     nn.ReLU(),
+                                     nn.Conv2d(16, 32, kernel_size=4,
+                                               stride=2, padding=1),
+                                     nn.ReLU(),
+                                     Flatten(),
+                                     nn.Linear(32*16*16, self.hidden_dim),
+                                     nn.ReLU())
+
+        self.decoder = nn.Sequential(nn.Linear(self.hidden_dim, 32*16*16),
+                                     nn.ReLU(),
+                                     UnFlatten(),
+                                     nn.ConvTranspose2d(
+                                         32, 16, kernel_size=2, stride=2),
+                                     nn.ReLU(),
+                                     nn.ConvTranspose2d(16, self.img_chans,
+                                                        kernel_size=7, stride=2),
+                                     nn.Sigmoid())
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = L1Penality.apply(x, 0.5)
+        x = self.decoder(x)
+        return x
+
+
+class SparseAutoEncoder(nn.Module):
+    '''
+    Sparse autoencoder.
+    '''
+
+    def __init__(self, mode, hidden_dim=1024):
+        '''
+        Initialization of VAE model.
+        '''
+        if mode == 'pnf':
+            self.img_chans = 3
+        elif mode == 'od':
+            self.img_chans = 1
+        else:
+            raise ValueError('Wrong mode. Only pnf and od are supported.')
+
+        self.hidden_dim = hidden_dim
+        self.is_conv = True
+
+        super(SparseAutoEncoder, self).__init__()
+        self.encoder = nn.Sequential(
+                                     Flatten(),
+                                     nn.Linear(3*69*69, self.hidden_dim),
+                                     nn.Tanh())
+
+        self.decoder = nn.Sequential(nn.Linear(self.hidden_dim, 3*69*69),
+                                     nn.Sigmoid(),
+                                     UnFlatten())
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = L1Penality.apply(x, 0.9)
+        x = self.decoder(x)
+        return x
+
+
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+
+class UnFlatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), 3, 69, 69)
 
 
 if __name__ == '__main__':
