@@ -834,12 +834,11 @@ class SparseAutoEncoder(nn.Module):
         self.encoder = nn.Sequential(
             Flatten(),
             nn.Linear(3*69*69, self.hidden_dim),
-            nn.Tanh()
+            nn.ReLU()
         )
 
         self.decoder = nn.Sequential(
             nn.Linear(self.hidden_dim, 3*69*69),
-            nn.Sigmoid(),
             UnFlatten()
         )
 
@@ -848,7 +847,7 @@ class SparseAutoEncoder(nn.Module):
         Forward pass.
         '''
         x = self.encoder(x)
-        x = L1Penality.apply(x, 0.9)
+        x = L1Penality.apply(x, 0.1)
         x = self.decoder(x)
         return x
 
