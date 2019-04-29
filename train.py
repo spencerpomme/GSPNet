@@ -247,18 +247,18 @@ def train_classifier(model, optimizer, criterion, n_epochs,
             optimizer.step()
 
             # record loss
-            train_losses.append(loss.item() * data.size(0))
+            train_losses.append(loss.item())
 
             model.eval()
 
         for v_data, v_label in valid_loader:
 
-            v_data, v_label = v_data.cuda(), v_label.cuda()
+            v_data, v_label = v_data.to(device), v_label.to(device)
 
             v_output = model(v_data)
             val_loss = criterion(v_output, v_label)
 
-            valid_losses.append(val_loss.item() * data.size(0))
+            valid_losses.append(val_loss.item())
 
         model.train()
         avg_val_loss = np.mean(valid_losses)
@@ -372,7 +372,7 @@ def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc,
 
     # start training
     trained_model, tlvl = train_classifier(model, optimizer, criterion, epochs,
-                                           train_loader, valid_loader, hyps)
+                                           train_loader, valid_loader, hyps, device=device)
 
     # loss plot
     tl, vl = tlvl
@@ -924,7 +924,7 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
     if TRAIN_ON_MULTI_GPUS:
         optimizer = optim.Adam(model.module.parameters(), lr=learning_rate)
     else:
-        optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+        optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 
     if model_name == 'VAE':
         criterion = vae_loss
@@ -937,13 +937,15 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
         # criterion = dich_mse_loss
         # start training
         trained_model = train_encoder(
-            model, optimizer, criterion, epochs, loader, hyps, device=device)
+            model, optimizer, criterion, epochs, loader, hyps, device=device
+        )
 
     return trained_model
 
 
 if __name__ == '__main__':
 
+    # dataset folders
     datasets = {
         "od1815": '2018/15min',
         "od1812": '2018/12min',
@@ -956,7 +958,8 @@ if __name__ == '__main__':
     }
 
     data_dir = f'data/{datasets["pnf1815"]}/tensors'
+
     # run_recursive_training()
-    # run_classifier_training()
-    run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.001,
-                         mode='pnf', hd=64, device='cuda:0')
+    run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2,
+                            device='cuda:1')
+    # run_encoder_training('SparseAutoEncoder', data_dir, 1000, 1024, 0.8, 0.01, mode='pnf', hd=64, device='cuda:0')
