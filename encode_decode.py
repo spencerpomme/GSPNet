@@ -200,7 +200,7 @@ def retrieve_hyps(path: str):
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
         hyps['is'] = int(input_size_pt.findall(path)[0])
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
-              'SparseAutoEncoder']:
+              'SparseAutoEncoder', 'SparseConvAutoEncoder']:
         hyps['hd'] = int(hidden_size_pt.findall(path)[0])
     if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
         hyps.update(
@@ -213,7 +213,7 @@ def retrieve_hyps(path: str):
     if mn in ['ConvClassifier', 'MLPClassifier']:
         hyps['nc'] = int(nc_pt.findall(path)[0])
     if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
-              'SparseAutoEncoder']:
+              'SparseAutoEncoder', 'SparseConvAutoEncoder']:
         hyps['md'] = mode_pt.findall(path)[0]
     if mn in ['VAE']:
         hyps['zd'] = int(zdim_pt.findall(path)[0])
@@ -320,7 +320,19 @@ def run(model_path, data_path, dest_path, size, mode, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnSparseAutoEncoder-hd128-mdpnf-bs1024-lr0.01.pt'
-    data_path = 'data/2018_15min/tensors'
+    # dataset folders
+    datasets = {
+        "od1815": '2018/15min',
+        "od1812": '2018/12min',
+        "pnf1815": '2018_15min',
+        "pnf1812": '2018_12min',
+        "od1715": '2017/15min',
+        "od1712": '2017/12min',
+        "pnf1715": '2017_15min',
+        "pnf1712": '2017_12min'
+    }
+
+    data_path = f'data/{datasets["od1815"]}/tensors'
+    model_path = 'trained_models/mnSparseConvAutoEncoder-mdod-hd1024-bs1024-lr0.1.pt'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 8, 'pnf', 'cuda:0')
+    run(model_path, data_path, dest_path, 8, 'od', 'cuda:0')
