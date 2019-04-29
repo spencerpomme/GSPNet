@@ -19,7 +19,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Training methods defined here.
+Testing methods defined here.
 A part of GSPNet project.
 
 '''
+
+
+def test_classifier(classifier, testset):
+    '''
+    '''
+    pass
