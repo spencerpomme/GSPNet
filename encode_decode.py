@@ -273,7 +273,7 @@ def run(model_path, data_path, dest_path, size, mode, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnVAE-is4761-os4761-bs64-lr0.001-hd128-mdod.pt'
+    model_path = 'trained_models/mnSparseAutoEncoder-bs1024-lr0.001.pt'
     data_path = 'data/2018_15min/tensors'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 8, 'pnf', 'cuda:0')
