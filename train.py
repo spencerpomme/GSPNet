@@ -682,16 +682,13 @@ def run_recursive_training(model_name, data_dir, epochs, bs, vs, lr, sl=12,
     train_curve, = plt.plot(x, tl, 'r-', label='train loss')
     valid_curve, = plt.plot(x, vl, 'b-', label='valid loss')
     plt.legend(handler_map={train_curve: HandlerLine2D(numpoints=1)})
-
-    plt.savefig(
-        'trained_models' + '/' +
-        f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.png'
-    )
+    curve_name = get_curve_name('trained_models', hyps)
+    plt.savefig(curve_name)
     plt.show()
 
 
-def train_encoder(model, optimizer, criterion, n_epochs, early_stop_count=20,
-                  loader, hyps, device='cuda:0', show_every_n_epochs=10):
+def train_encoder(model, optimizer, criterion, n_epochs, loader, hyps,
+                  early_stop_count=20, device='cuda:0', show_every_n_epochs=10):
     '''
     Train an auto encoder with the given hyperparameters.
 
@@ -945,7 +942,7 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
 
 if __name__ == '__main__':
 
-    datsets = {
+    datasets = {
         "od1815": '2018/15min',
         "od1812": '2018/12min',
         "pnf1815": '2018_15min',
