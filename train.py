@@ -62,7 +62,25 @@ def save_model(model, dest: str, hyps: dict):
         dest: folder to save trained model
         hyps: hyperparameters of the trained model
     '''
-    name = f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-sl{hyps["sl"]}-bs{hyps["bs"]}-hd{hyps["hd"]}-lr{hyps["lr"]}-nl{hyps["nl"]}-dp{hyps["dp"]}.pt'
+    mn = f'mn{hyps['mn']}'
+    name += mn
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'ConvAutoEncoder', 'ConvAutoEncoderShallow']:
+        name += f'-os{hyps['os']}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder']:
+        name += f'-is{hyps['is']}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN', 'AutoEncoder',
+              'SparseAutoEncoder']:
+        name += f'-hd{hyps['hd']}'
+    if mn in ['VanillaLSTM', 'VanillaGRU', 'EmbedRNN']:
+        name += f'-nl{hyps['nl']}-dp{hyps['dp']}-sl{hyps['sl']}'
+    if mn in ['ConvClassifier', 'MLPClassifier']:
+        name += f'-nc{hyps['nc']}'
+    if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
+              'SparseAutoEncoder']:
+        name += f'-md{hyps['md']}'
+
+    name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'
     torch.save(model.state_dict(), dest + '/' + name)
 
 
@@ -223,8 +241,7 @@ def train_classifier(model, optimizer, criterion, n_epochs,
             print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. \
                     Saving...', flush=True)
 
-            torch.save(model.state_dict(),
-                       f'mn{hyps["mn"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-nc{hyps["nc"]}-dp{hyps["dp"]}.pt')
+            save_model(model, 'trained_models', hyps)
 
             valid_loss_min = avg_val_loss
             early_stop_count = 0
@@ -699,9 +716,7 @@ def train_encoder(model, optimizer, criterion, n_epochs, early_stop_count=20,
                     print(f'Valid Loss {valid_loss_min:.6f} -> {avg_val_loss:.6f}. Saving...')
 
                     # saving state_dict of model
-                    torch.save(model.state_dict(), 'trained_models' + '/' +
-                               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}' +
-                               f'-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
+                    save_model(model, 'trained_models', hyps)
 
                     loss_min = avg_loss
                     stop = 0
@@ -777,8 +792,7 @@ def train_vae(model, optimizer, criterion, n_epochs,
         # clear
         losses = []
 
-    torch.save(model.state_dict(), 'trained_models' + '/' +
-               f'mn{hyps["mn"]}-is{hyps["is"]}-os{hyps["os"]}-bs{hyps["bs"]}-lr{hyps["lr"]}-hd{hyps["hd"]}-md{hyps["md"]}.pt')
+    save_model(model, 'trained_models', hyps)
 
     # returns a trained model
     end = time.time()
