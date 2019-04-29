@@ -46,6 +46,29 @@ from tqdm import tqdm
 TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
+# util functions
+def decide_label(file: str):
+    '''
+    This function hard codes classification criteria to label the tensors.
+
+    Args:
+        file: a file name string
+        nc: number of classes
+    Returns:
+        label: the class label of a given tensor file
+    '''
+    pattern = re.compile(
+        '^(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)-(\d{4})-([0-1]\d)-([0-3]\d)_([0-1]\d|[2][0-3]);([0-5]\d);([0-5]\d)')
+
+    file = file.split('\\')[1]
+    i = int(pattern.findall(file)[0][3])
+    # 3-hour-a-class
+    labels = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1,
+              0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    label = labels[i]
+    return label
+
+
 # Customized RNN/LSTM datasets when dataset are to big to load at once into RAM
 # Data feeders, type 1 (using classes)
 class F2FDataset(data.Dataset):
