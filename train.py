@@ -79,6 +79,8 @@ def save_model(model, dest: str, hyps: dict):
     if mn in ['ConvAutoEncoder', 'ConvAutoEncoderShallow', 'VAE',
               'SparseAutoEncoder']:
         name += f'-md{hyps['md']}'
+    if mn in ['VAE']:
+        name += f'-zd{hyps['z_dim']}'
 
     name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'
     torch.save(model.state_dict(), dest + '/' + name)
@@ -259,20 +261,21 @@ def train_classifier(model, optimizer, criterion, n_epochs,
     return model, (tl, vl)
 
 
-def run_classifier_training(model_name, epochs, nc, vs, rs,
-                            lr=0.001, bs=128, dp=0.5, device='cuda:0'):
+def run_classifier_training(model_name, data_dir, epochs, bs, vs, lr, nc
+                            dp=0.5, device='cuda:0'):
     '''
     Main function of cnn classifier training.
 
     Args:
         model_name: model name
+        data_dir: data source location
         epochs: number of epochs to train
-        nc: number of classes
-        vs: validation size, proportion of validation data set
-        rs: random seed
-        lr: learning_rate
         bs: batch_size
+        vs: validation size, proportion of validation data set
+        lr: learning_rate
+        nc: number of classes
         dp: drop_prob
+        device: GPU or CPU
     '''
     # Training parameters
     epochs = epochs
@@ -306,7 +309,6 @@ def run_classifier_training(model_name, epochs, nc, vs, rs,
     split = int(np.floor(vs * num_train))
 
     # shuffle
-    np.random.seed(rs)
     np.random.shuffle(indices)
 
     train_idx, valid_idx = indices[split:], indices[:split]
@@ -552,20 +554,23 @@ def train_recurrent(model, batch_size, optimizer, criterion,
 
 
 # run functions of this module
-def run_recursive_training(model_name, epochs, sl=12, bs=64,
-                           lr=0.001, hd=256, nl=2, dp=0.5, device='cuda:0'):
+def run_recursive_training(model_name, data_dir, epochs, bs, vs, lr, sl=12,
+                           hd=256, nl=2, dp=0.5, device='cuda:0'):
     '''
     Main function of RNNs training.
 
     Args:
         model_name: model name
+        data_dir: data source location
         epochs: number of epochs to train
-        sl: sequence_length
         bs: batch_size
+        vs: validation proportion
         lr: learning_rate
+        sl: sequence_length
         hd: hidden_dim
         nl: n_layers
         dp: drop_prob
+        device: training hardware, GPU or CPU
     '''
     # LSTM Model Data params
     sequence_length = sl  # number of time slices in a sequence
@@ -599,13 +604,12 @@ def run_recursive_training(model_name, epochs, sl=12, bs=64,
         'dp': drop_prob
     }
 
-    data_dir = 'data/2018_15min/tensors'
     data_set = S2FDatasetRAM(data_dir, sequence_length)
 
     # split dataset for training and validation
     num_train = len(data_set)
     indices = list(range(num_train))
-    split = int(np.floor(0.8 * num_train))  # hard coded to 0.8
+    split = int(np.floor(vs * num_train))  # hard coded to 0.8
 
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SequentialSampler(train_idx)
@@ -800,19 +804,20 @@ def train_vae(model, optimizer, criterion, n_epochs,
     return model
 
 
-def run_encoder_training(model_name, epochs, data_dir, mode='od',
-                         hd=512, lr=0.001, bs=64, device='cuda:0'):
+def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
+                         hd=512, device='cuda:0'):
     '''
     Main function of auto encoder.
 
     Args:
         model_name: model name
-        epochs: number of epochs to train
         data_dir: location of training data
+        epochs: number of epochs to train
+        bs: batch_size
+        vs: validation size
+        lr: learning rate
         mode: pnf or od
         hd: hidden dim
-        lr: learning_rate
-        bs: batch_size
         device: where to train the model
     '''
     # Training parameters
