@@ -53,6 +53,21 @@ TRAIN_ON_MULTI_GPUS = False  # (torch.cuda.device_count() >= 2)
 
 
 # helper functions
+def create_dir(directory: str):
+    '''
+    Helper function to create directory
+    Args:
+        directory: a string describing the to be created dir
+    '''
+    try:
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+    except OSError:
+        print('Error: Creating directory. ' + directory)
+        raise OSError
+
+
 def save_model(model, dest: str, hyps: dict):
     '''
     Save model to local file.
@@ -85,12 +100,14 @@ def save_model(model, dest: str, hyps: dict):
     if mn in ['GAN']:
         name += f'-zs{hyps["zs"]}'
         name += f'-ss{hyps["ss"]}'
-        name += f'-cd{hyps["cs"]}'
+        name += f'-cd{hyps["cd"]}'
         name += f'-vs{hyps["vs"]}'
         name += f'-md{hyps["md"]}'
 
     name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'
-    torch.save(model.state_dict(), dest + '/' + name)
+    create_dir(dest)
+    dest = dest + '/' + name
+    torch.save(model.state_dict(), dest)
 
 
 def get_curve_name(dest: str, hyps: dict):
@@ -979,6 +996,7 @@ def train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, z_size,
 
     # keep track of loss and generated, "fake" samples
     samples = []
+    truths = []
     losses = []
 
     # Get some fixed data for sampling. These are images that are held
@@ -1080,14 +1098,20 @@ def train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, z_size,
     with open('train_samples.pkl', 'wb') as f:
         pkl.dump(samples, f)
 
-    save_model(D, 'trained_models', hyps)
-    save_model(G, 'trained_models', hyps)
+    save_model(D, 'trained_models/GAN/D', hyps)
+    save_model(G, 'trained_models/GAN/G', hyps)
 
     end = time.time()
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
 
+    with open('train_samples.pkl', 'rb') as f:
+        samples = pkl.load(f)
+        # print(f'samples.shape -> {len(samples)} {[item.shape for item in samples]}')
+    _ = view_samples(-1, samples, mode=hyps['md'])
+    return G, D
 
-def run_GAN_training(data_dir, epochs, bs, vs, =0.002, z_size=128, sample_size=16,
+
+def run_GAN_training(data_dir, epochs, bs, vs, lr=0.0002, z_size=128, sample_size=16,
                      conv_dim=64, beta1=0.5, beta2=0.999, mode='od', device='cuda:0'):
     '''
     Main function of GAN.
@@ -1176,10 +1200,11 @@ def run_GAN_training(data_dir, epochs, bs, vs, =0.002, z_size=128, sample_size=1
         d_optimizer = optim.Adam(D.parameters(), lr, [beta1, beta2])
         g_optimizer = optim.Adam(G.parameters(), lr, [beta1, beta2])
 
-    train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, train_loader,
-              valid_loader, hyps, device=device, show_every_n_batches=100)
+    G, D = train_GAN(D, G, d_optimizer, g_optimizer, epochs, z_size,
+                     train_loader, valid_loader, sample_size, hyps,
+                     device=device, print_every=100)
 
-    return trained_model
+    return G, D
 
 
 if __name__ == '__main__':
@@ -1203,4 +1228,4 @@ if __name__ == '__main__':
     # run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
     #                      mode='od', hd=256, device='cuda:1')
 
-    run_GAN_training(data_dir, 10, 64, 0.8, 0.01, mode='pnf')
+    run_GAN_training(data_dir, 100, 64, 0.8, conv_dim=256, mode='pnf')
