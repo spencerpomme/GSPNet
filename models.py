@@ -557,6 +557,8 @@ def view_samples(epoch, samples, mode='pnf'):
         if mode == 'pnf':
             im = ax.imshow(img)
         elif mode == 'od':
+            img = np.squeeze(img, axis=2)
+            # print(f'--> --> --> img.shape: {img.shape}')
             img = Image.fromarray(img, mode='L')
             img = np.asarray(img)
             im = ax.imshow(img, cmap='gray', vmin=0, vmax=255)

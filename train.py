@@ -1228,4 +1228,4 @@ if __name__ == '__main__':
     # run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
     #                      mode='od', hd=256, device='cuda:1')
 
-    run_GAN_training(data_dir, 2, 64, 0.8, conv_dim=256, mode='od')
+    run_GAN_training(data_dir, 100, 64, 0.8, conv_dim=256, mode='od')
