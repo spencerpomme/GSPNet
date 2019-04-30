@@ -1162,8 +1162,8 @@ def run_GAN_training(data_dir, epochs, bs, vs, lr=0.0002, z_size=128, sample_siz
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
     # define discriminator and generator
-    D = Discriminator(conv_dim)
-    G = Generator(z_size=z_size, conv_dim=conv_dim)
+    D = Discriminator(conv_dim, mode=hyps['md'])
+    G = Generator(z_size=z_size, conv_dim=conv_dim, mode=hyps['md'])
 
     # initialize model weights
     D.apply(weights_init_normal)
@@ -1221,11 +1221,11 @@ if __name__ == '__main__':
         "pnf1712": '2017_12min'
     }
 
-    data_dir = f'data/{datasets["pnf1815"]}/tensors'
+    data_dir = f'data/{datasets["od1815"]}/tensors'
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
     # run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
     #                      mode='od', hd=256, device='cuda:1')
 
-    run_GAN_training(data_dir, 100, 64, 0.8, conv_dim=256, mode='pnf')
+    run_GAN_training(data_dir, 10, 64, 0.8, conv_dim=256, mode='od')
