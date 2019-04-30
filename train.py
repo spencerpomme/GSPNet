@@ -82,6 +82,12 @@ def save_model(model, dest: str, hyps: dict):
         name += f'-md{hyps["md"]}'
     if mn in ['VAE']:
         name += f'-zd{hyps["z_dim"]}'
+    if mn in ['GAN']:
+        name += f'-zs{hyps["zs"]}'
+        name += f'-ss{hyps["ss"]}'
+        name += f'-cd{hyps["cs"]}'
+        name += f'-vs{hyps["vs"]}'
+        name += f'-md{hyps["md"]}'
 
     name += f'-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'
     torch.save(model.state_dict(), dest + '/' + name)
@@ -943,18 +949,37 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
     return trained_model
 
 
-def train_GAN(D, G, d_opt, g_opt, criterion, n_epochs,
-              train_loader, valid_loader, hyps, device='cuda:0', show_every_n_batches=100):
+def train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, z_size,
+              train_loader, valid_loader, sample_size, hyps, device='cuda:0',
+              print_every=100):
     '''
+    GAN training function.
+
+    Args:
+        D:
+        G:
+        d_optimizer:
+        g_optimizer:
+        n_epochs:
+        z_size:
+        train_loader:
+        valid_loader:
+        sample_size:
+        hyps:
+        device:
+        print_every:
+    Returns:
+        trained model: G and D
     '''
-    # training hyperparams
-    n_epochs = 50
+    # clear cache
+    torch.cuda.empty_cache()
+    # start timing
+    start = time.time()
+    print(f'Training on device {device} started at {time.ctime()}')
 
     # keep track of loss and generated, "fake" samples
     samples = []
     losses = []
-
-    print_every = 300
 
     # Get some fixed data for sampling. These are images that are held
     # constant throughout training, and allow us to inspect the model's performance
@@ -1036,8 +1061,8 @@ def train_GAN(D, G, d_opt, g_opt, criterion, n_epochs,
                 # append discriminator loss and generator loss
                 losses.append((d_loss.item(), g_loss.item()))
                 # print discriminator and generator loss
-                print('Epoch [{:5d}/{:5d}] | d_loss: {:6.4f} | g_loss: {:6.4f}'.format(
-                    epoch+1, n_epochs, d_loss.item(), g_loss.item()))
+                print(f'Epoch [{epoch+1:5d}/{n_epochs:5d}] |' +
+                      f' d_loss: {d_loss.item():6.4f} | g_loss: {g_loss.item():6.4f}')
 
         # AFTER EACH EPOCH
         # generate and save sample, fake images
@@ -1055,9 +1080,15 @@ def train_GAN(D, G, d_opt, g_opt, criterion, n_epochs,
     with open('train_samples.pkl', 'wb') as f:
         pkl.dump(samples, f)
 
+    save_model(D, 'trained_models', hyps)
+    save_model(G, 'trained_models', hyps)
 
-def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
-                     beta1=0.5, beta2=0.999, mode='od', device='cuda:0'):
+    end = time.time()
+    print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
+
+
+def run_GAN_training(data_dir, epochs, bs, vs, lr, z_size=128, sample_size=16,
+                     conv_dim=64, beta1=0.5, beta2=0.999, mode='od', device='cuda:0'):
     '''
     Main function of GAN.
 
@@ -1075,25 +1106,17 @@ def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
     epochs = epochs
     learning_rate = lr
     batch_size = bs
-
-    # Model parameters
-    if mode == 'od':
-        input_size = 69 * 69 * 1
-    elif mode == 'pnf':
-        input_size = 69 * 69 * 3
-    else:
-        raise ValueError('Only `od` and `pnf` are supported.')
-    output_size = input_size
-    hidden_dim = hd
+    valid_size = vs
 
     # wrap essential info into dictionary:
     hyps = {
-        'is': input_size,
-        'os': output_size,
         'mn': 'GAN',
-        'hd': hidden_dim,
         'bs': batch_size,
+        'vs': valid_size,
         'lr': learning_rate,
+        'zs': z_size,
+        'ss': sample_size,
+        'cd': conv_dim,
         'md': mode
     }
 
@@ -1102,14 +1125,14 @@ def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
     # split dataset for training and validation
     num_train = len(data_set)
     indices = list(range(num_train))
-    split = int(np.floor(0.8 * num_train))  # hard coded to 0.8
+    split = int(np.floor(valid_size * num_train))  # hard coded to 0.8
 
     train_idx, valid_idx = indices[split:], indices[:split]
     train_sampler = SequentialSampler(train_idx)
     valid_sampler = SequentialSampler(valid_idx)
 
-    loader = DataLoader(data_set, sampler=train_sampler,
-                        batch_size=batch_size, num_workers=0, drop_last=True)
+    train_loader = DataLoader(data_set, sampler=train_sampler,
+                              batch_size=batch_size, num_workers=0, drop_last=True)
 
     valid_loader = DataLoader(data_set, sampler=valid_sampler,
                               batch_size=batch_size, num_workers=0, drop_last=True)
@@ -1117,6 +1140,14 @@ def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
     # define discriminator and generator
     D = Discriminator(conv_dim)
     G = Generator(z_size=z_size, conv_dim=conv_dim)
+
+    # initialize model weights
+    D.apply(weights_init_normal)
+    G.apply(weights_init_normal)
+
+    print(D)
+    print()
+    print(G)
 
     # model training device
     if TRAIN_ON_MULTI_GPUS:
@@ -1145,7 +1176,8 @@ def run_GAN_training(data_dir, epochs, bs, vs, lr, conv_dim=512,
         d_optimizer = optim.Adam(D.parameters(), lr, [beta1, beta2])
         g_optimizer = optim.Adam(G.parameters(), lr, [beta1, beta2])
 
-    train_GAN()
+    train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, train_loader,
+              valid_loader, hyps, device=device, show_every_n_batches=100)
 
     return trained_model
 
@@ -1164,9 +1196,11 @@ if __name__ == '__main__':
         "pnf1712": '2017_12min'
     }
 
-    data_dir = f'data/{datasets["od1815"]}/tensors'
+    data_dir = f'data/{datasets["pnf1815"]}/tensors'
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
-    run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
-                         mode='od', hd=256, device='cuda:1')
+    # run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
+    #                      mode='od', hd=256, device='cuda:1')
+
+    run_GAN_training(data_dir, 10, 64, 0.8, 0.01, mode='pnf')
