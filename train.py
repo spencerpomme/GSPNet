@@ -1087,7 +1087,7 @@ def train_GAN(D, G, d_optimizer, g_optimizer, n_epochs, z_size,
     print(f'Training ended at {time.ctime()}, took {end-start:2f} seconds.')
 
 
-def run_GAN_training(data_dir, epochs, bs, vs, lr, z_size=128, sample_size=16,
+def run_GAN_training(data_dir, epochs, bs, vs, =0.002, z_size=128, sample_size=16,
                      conv_dim=64, beta1=0.5, beta2=0.999, mode='od', device='cuda:0'):
     '''
     Main function of GAN.
