@@ -34,6 +34,7 @@ import time
 import torch
 import torch.nn.functional as F
 
+from PIL import Image
 from torch import nn, optim
 from torch.utils.data import TensorDataset, DataLoader
 from glob import glob, iglob
@@ -550,9 +551,18 @@ def view_samples(epoch, samples, mode='pnf'):
         ax.xaxis.set_visible(False)
         ax.yaxis.set_visible(False)
         img = img.reshape((69, 69, chan))
+
         # img = img.resize((345, 345, chan))
         # print(f'type of img: {type(img)} | shape of img: {img.shape}')
-        im = ax.imshow(img)
+        if mode == 'pnf':
+            im = ax.imshow(img)
+        elif mode == 'od':
+            img = Image.fromarray(img, mode='L')
+            img = np.asarray(img)
+            im = ax.imshow(img, cmap='gray', vmin=0, vmax=255)
+        else:
+            raise ValueError(
+                f'Arg 3 `mode` expect string value pnf or od, but {mode} was provided.')
     plt.show()
 
 
@@ -613,6 +623,7 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         self.is_conv = True
         self.conv_dim = conv_dim
+        self.mode = mode
         if self.mode == 'pnf':
             self.chan = 3
         elif self.mode == 'od':
