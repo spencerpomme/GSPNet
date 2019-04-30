@@ -561,16 +561,26 @@ class Discriminator(nn.Module):
     Discriminator of GAN.
     '''
 
-    def __init__(self, conv_dim=32):
+    def __init__(self, conv_dim=32, mode='pnf'):
+        '''
+        Args:
+            conv_dim: conv layer base number
+            mode: pnf or od
+        '''
         super(Discriminator, self).__init__()
+        self.mode = mode
         self.is_conv = True
-
-        # complete init function
         self.conv_dim = conv_dim
+        if self.mode == 'pnf':
+            self.chan = 3
+        elif self.mode == 'od':
+            self.chan = 1
+        else:
+            raise ValueError(f'Arg 3 `mode` expect string value pnf or od, but {mode} was provided.')
 
         # 69x69 input
         # first layer, no batch_norm
-        self.conv1 = conv(3, conv_dim, 5, padding=0, stride=4, batch_norm=False)
+        self.conv1 = conv(self.chan, conv_dim, 5, padding=0, stride=4, batch_norm=False)
         # 17x17 out
         self.conv2 = conv(conv_dim, conv_dim*2, 3, padding=0)
         # 8x8 out
@@ -599,20 +609,23 @@ class Generator(nn.Module):
     Generator of GAN
     '''
 
-    def __init__(self, z_size, conv_dim=32):
+    def __init__(self, z_size, conv_dim=32, mode='pnf'):
         super(Generator, self).__init__()
         self.is_conv = True
-
-        # complete init function
         self.conv_dim = conv_dim
-
+        if self.mode == 'pnf':
+            self.chan = 3
+        elif self.mode == 'od':
+            self.chan = 1
+        else:
+            raise ValueError(f'Arg 3 `mode` expect string value pnf or od, but {mode} was provided.')
         # first, fully-connected layer
         self.fc = nn.Linear(z_size, conv_dim*4*3*3)
 
         # transpose conv layers
         self.t_conv1 = deconv(self.conv_dim*4, self.conv_dim*2, 4, padding=0)
         self.t_conv2 = deconv(self.conv_dim*2, self.conv_dim, 3, padding=0)
-        self.t_conv3 = deconv(self.conv_dim, 3, 5, padding=0,
+        self.t_conv3 = deconv(self.conv_dim, self.chan, 5, padding=0,
                               stride=4, batch_norm=False)
 
     def forward(self, x):
