@@ -506,7 +506,7 @@ def deconv(in_channels, out_channels, kernel_size, stride=2, padding=1, batch_no
 def scale(x, feature_range=(-1, 1)):
     '''
     Scale takes in an image x and returns that image, scaled
-       with a feature_range of pixel values from -1 to 1. 
+       with a feature_range of pixel values from -1 to 1.
        This function assumes that the input x is already scaled from 0-1.
     '''
     # assume x is scaled to (0, 1)
@@ -519,9 +519,9 @@ def scale(x, feature_range=(-1, 1)):
 def weights_init_normal(m):
     """
     Applies initial weights to certain layers in a model .
-    The weights are taken from a normal distribution 
+    The weights are taken from a normal distribution
     with mean = 0, std dev = 0.02.
-    :param m: A module or layer in a network    
+    :param m: A module or layer in a network
     """
     # classname will be something like:
     # `Conv`, `BatchNorm2d`, `Linear`, etc.
@@ -530,6 +530,30 @@ def weights_init_normal(m):
     if classname.find('Conv') != -1 or classname.find('Linear') != -1:
         nn.init.normal_(m.weight.data, mean=0, std=0.02)
         # nn.init.constant_(m.weight.data, 0.45)
+
+
+# helper function for viewing a list of passed in sample images
+def view_samples(epoch, samples, mode='pnf'):
+    if mode == 'pnf':
+        chan = 3
+    elif mode == 'od':
+        chan = 1
+    else:
+        raise ValueError(f'Arg 3 `mode` expect string value pnf or od, but {mode} was provided.')
+
+    fig, axes = plt.subplots(figsize=(16, 4), nrows=2, ncols=8, sharey=True,
+                             sharex=True)
+    for ax, img in zip(axes.flatten(), samples[epoch]):
+        img = img.detach().cpu().numpy()
+        img = np.transpose(img, (1, 2, 0))
+        img = ((img + 1)*255 / (2)).astype(np.uint8)
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+        img = img.reshape((69, 69, chan))
+        # img = img.resize((345, 345, chan))
+        # print(f'type of img: {type(img)} | shape of img: {img.shape}')
+        im = ax.imshow(img)
+    plt.show()
 
 
 class Discriminator(nn.Module):
@@ -586,15 +610,15 @@ class Generator(nn.Module):
         self.fc = nn.Linear(z_size, conv_dim*4*3*3)
 
         # transpose conv layers
-        self.t_conv1 = deconv(conv_dim*4, conv_dim*2, 4, padding=0)
-        self.t_conv2 = deconv(conv_dim*2, conv_dim, 3, padding=0)
-        self.t_conv3 = deconv(conv_dim, 3, 5, padding=0,
+        self.t_conv1 = deconv(self.conv_dim*4, self.conv_dim*2, 4, padding=0)
+        self.t_conv2 = deconv(self.conv_dim*2, self.conv_dim, 3, padding=0)
+        self.t_conv3 = deconv(self.conv_dim, 3, 5, padding=0,
                               stride=4, batch_norm=False)
 
     def forward(self, x):
         # fully-connected + reshape
         out = self.fc(x)
-        out = out.view(-1, conv_dim*4, 3, 3)  # (batch_size, depth, 4, 4)
+        out = out.view(-1, self.conv_dim*4, 3, 3)  # (batch_size, depth, 4, 4)
 
         # hidden transpose conv layers + relu
         out = F.relu(self.t_conv1(out))
@@ -602,7 +626,7 @@ class Generator(nn.Module):
 
         # last layer + tanh activation
         out = self.t_conv3(out)
-        out = F.tanh(out)
+        out = torch.tanh(out)
 
         return out
 
