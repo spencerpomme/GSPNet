@@ -48,7 +48,7 @@ def dich_mse_loss(output, label, alpha=0.1):
 
 
 # loss functions for GAN:
-def real_loss(D_out, smooth=False):
+def real_loss(D_out, smooth=True):
     '''
     Real loss.
 
@@ -61,7 +61,7 @@ def real_loss(D_out, smooth=False):
     else:
         labels = torch.ones(batch_size)  # real labels = 1
     # move labels to GPU if available
-    if train_on_gpu:
+    if torch.cuda.is_available():
         labels = labels.cuda()
     # binary cross entropy with logits loss
     criterion = nn.BCEWithLogitsLoss()
@@ -77,7 +77,7 @@ def fake_loss(D_out):
     '''
     batch_size = D_out.size(0)
     labels = torch.zeros(batch_size)  # fake labels = 0
-    if train_on_gpu:
+    if torch.cuda.is_available():
         labels = labels.cuda()
     criterion = nn.BCEWithLogitsLoss()
     # calculate loss
