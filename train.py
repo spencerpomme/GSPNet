@@ -1227,7 +1227,7 @@ if __name__ == '__main__':
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
-    run_encoder_training('ConvAutoEncoderShallow', data_dir, 500, 1024, 0.8, 0.1,
+    run_encoder_training('ConvAutoEncoderShallow', data_dir, 1000, 1024, 0.8, 0.1,
                          mode=mode, hd=256, device='cuda:0')
 
     # run_GAN_training(data_dir, 100, 64, 0.8, z_size=100, conv_dim=256, mode='pnf')
