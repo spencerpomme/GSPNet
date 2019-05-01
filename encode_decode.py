@@ -72,6 +72,7 @@ def regen(model, truths, dest, mode, device='cuda:0'):
         else:
             tensor = tensor.reshape((1, -1))
         tensor = tensor.to(device)
+        print(f'tensor.shape -> {tensor.shape}')
         deco = model(tensor)
         save_to(deco, dest, False, i, mode)  # false means it's not real future
 
@@ -332,7 +333,8 @@ if __name__ == '__main__':
         "pnf1712": '2017_12min'
     }
 
-    data_path = f'data/{datasets["od1815"]}/tensors'
+    mode = 'pnf'
+    data_path = f'data/{datasets[mode+"1715"]}/tensors'
     model_path = 'trained_models/mnSparseConvAutoEncoder-mdod-hd1024-bs1024-lr0.1.pt'
     dest_path = 'autoencoder_test'
-    run(model_path, data_path, dest_path, 8, 'od', 'cuda:0')
+    run(model_path, data_path, dest_path, 8, mode, 'cuda:0')
