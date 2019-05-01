@@ -71,8 +71,8 @@ if __name__ == '__main__':
     # Hyperparameters:
     batch_size = 256
     num_workers = 0
-    learning_rate = 0.1
-    epochs = 100
+    learning_rate = 0.5
+    epochs = 300
     mode = 'pnf'
     save_dir = 'trained_models'
     dest = 'autoencoder_test/sanitycheck'
@@ -81,7 +81,7 @@ if __name__ == '__main__':
         'is': 69*69*3,
         'os': 69*69*3,
         'mn': 'sanitycheck',
-        'hd': 32,
+        'hd': 8192,
         'bs': batch_size,
         'lr': learning_rate,
         'md': mode
@@ -112,7 +112,7 @@ if __name__ == '__main__':
     valid_loader = DataLoader(data, sampler=valid_sampler,
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
-    model = AutoEncoder(hyps['is'], hyps['os'], hidden_dim=hyps['hd'], mode=mode)
+    model = SparseConvAutoEncoder(hidden_dim=hyps['hd'], mode=mode)
     model = model.to('cuda:0')
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
@@ -121,7 +121,7 @@ if __name__ == '__main__':
     trained_model = train_encoder(model, optimizer, criterion, epochs,
                                   train_loader, hyps, device='cuda:0')
 
-    trained_model = AutoEncoder(hyps['is'], hyps['os'], hidden_dim=hyps['hd'], mode=mode)
+    trained_model = SparseConvAutoEncoder(hidden_dim=hyps['hd'], mode=mode)
     trained_model.load_state_dict(torch.load(save_dir + '/mnsanitycheck-bs256-lr0.1.pt'))
     trained_model.to('cuda:0')
 
