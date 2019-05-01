@@ -755,6 +755,7 @@ def train_encoder(model, optimizer, criterion, n_epochs, loader, hyps,
 
             optimizer.zero_grad()
             output = model(data)
+            # print(f'output.shape -> {output.shape} | data.shape -> {data.shape}')
             loss = criterion(output, data)
             loss.backward()
             optimizer.step()
@@ -924,7 +925,7 @@ def run_encoder_training(model_name, data_dir, epochs, bs, vs, lr, mode='od',
     # initialize model
     # This part is currently very mixed. Change in the future.
     if model_name in ['ConvAutoEncoder', 'ConvAutoEncoderShallow']:
-        model = models.__dict__[model_name](hyps['is'], hyps['os'], mode=hyps['md'])
+        model = models.__dict__[model_name](hyps['os'], mode=hyps['md'])
     elif model_name == 'VAE':
         model = models.__dict__[model_name](hyps['md'], hidden_dim=hyps['hd'], z_dim=32)
     elif model_name in ['SparseConvAutoEncoder', 'SparseAutoEncoder']:
@@ -1221,11 +1222,11 @@ if __name__ == '__main__':
         "pnf1712": '2017_12min'
     }
 
-    data_dir = f'data/{datasets["od1815"]}/tensors'
+    data_dir = f'data/{datasets["pnf1715"]}/tensors'
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
-    # run_encoder_training('ConvAutoEncoderSparse', data_dir, 500, 1024, 0.8, 0.1,
-    #                      mode='od', hd=256, device='cuda:1')
+    run_encoder_training('ConvAutoEncoderShallow', data_dir, 500, 1024, 0.8, 0.1,
+                         mode='pnf', hd=256, device='cuda:0')
 
-    run_GAN_training(data_dir, 2000, 64, 0.8, z_size=100, conv_dim=256, mode='od')
+    # run_GAN_training(data_dir, 100, 64, 0.8, z_size=100, conv_dim=256, mode='pnf')
