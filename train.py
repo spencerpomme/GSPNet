@@ -1223,11 +1223,11 @@ if __name__ == '__main__':
     }
 
     mode = 'pnf'
-    data_dir = f'data/{datasets[mode + "1715"]}/tensors'
+    data_dir = f'data/{datasets[mode + "1815"]}/tensors'
 
     # run_recursive_training()
     # run_classifier_training('ConvClassifier', data_dir, 50, 128, 0.8, 0.001, 2, device='cuda:1')
-    run_encoder_training('ConvAutoEncoderShallow', data_dir, 3000, 1024, 0.8, 0.1,
-                         mode=mode, hd=111, device='cuda:0')
+    run_encoder_training('ConvAutoEncoderShallow', data_dir, 12000, 1024, 0.8, 0.05,
+                         mode=mode, hd=112, device='cuda:1')
 
     # run_GAN_training(data_dir, 100, 64, 0.8, z_size=100, conv_dim=256, mode='pnf')
