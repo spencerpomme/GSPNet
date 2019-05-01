@@ -663,7 +663,7 @@ class AutoEncoder(nn.Module):
     '''
 
     def __init__(self, input_size, output_size, hidden_dim=512,
-                 train_on_gpu=True, device='cuda:0'):
+                 mode='pnf', train_on_gpu=True, device='cuda:0'):
         '''
         Auto encoder initialization.
 
@@ -675,10 +675,14 @@ class AutoEncoder(nn.Module):
             device:         where to put the model
         '''
         super().__init__()
+        self.chan = 3
         self.output_size = output_size
         self.hidden_dim = hidden_dim
         self.train_on_gpu = train_on_gpu
         self.dvc = device
+
+        if mode == 'od':
+            self.chan = 1
 
         # define the layers
         self.encoder = nn.Linear(input_size, hidden_dim)
@@ -696,13 +700,14 @@ class AutoEncoder(nn.Module):
             out:    output of current time step
         '''
         batch_size = x.size(0)
+        x = x. view(batch_size, -1)
         x = F.relu(self.encoder(x))
         x = F.relu(self.l1(x))
         x = F.relu(self.l2(x))
         out = self.decoder(x)
 
         # reshape to be batch_size first
-        out = out.view(batch_size, -1, self.output_size)
+        out = out.view(batch_size, self.chan, 69, 69)
 
         return out
 
@@ -764,6 +769,7 @@ class ConvAutoEncoderShallow(nn.Module):
         return out
 
 
+# A garbage param setting...
 class ConvAutoEncoder(nn.Module):
     '''
     A CNN autoencoder model, without any preprocessing to the inputs.
@@ -806,12 +812,10 @@ class ConvAutoEncoder(nn.Module):
         x = F.relu(self.t_conv2(x))
         out = self.t_conv1(x)
 
-        # reshape to be batch_size first
-        out = out.view(batch_size, -1, self.output_size)
-
         return out
 
 
+# mudamudamudamudamuda!
 class VAE(nn.Module):
     '''
     Variational Auto Encoder
