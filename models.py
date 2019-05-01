@@ -712,7 +712,7 @@ class ConvAutoEncoderShallow(nn.Module):
     A CNN autoencoder model, without any preprocessing to the inputs.
     '''
 
-    def __init__(self, output_size, mode='pnf'):
+    def __init__(self, output_size, mode='pnf', batch_norm=False):
         '''
         Auto encoder initialization.
 
@@ -727,6 +727,7 @@ class ConvAutoEncoderShallow(nn.Module):
         self.is_conv = True
         self.output_size = output_size
         self.chan = 3
+        self.batch_norm = batch_norm
 
         # define encode and decode layers
         if mode == 'od':
