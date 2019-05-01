@@ -72,16 +72,16 @@ if __name__ == '__main__':
     batch_size = 256
     num_workers = 0
     learning_rate = 0.1
-    epochs = 20
+    epochs = 100
     mode = 'pnf'
     save_dir = 'trained_models'
     dest = 'autoencoder_test/sanitycheck'
 
     hyps = {
-        'is': 111,
-        'os': 111,
+        'is': 69*69*3,
+        'os': 69*69*3,
         'mn': 'sanitycheck',
-        'hd': 111,
+        'hd': 32,
         'bs': batch_size,
         'lr': learning_rate,
         'md': mode
@@ -112,18 +112,18 @@ if __name__ == '__main__':
     valid_loader = DataLoader(data, sampler=valid_sampler,
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
-    model = ConvAutoEncoderShallow(69*69*3, mode='pnf')
-    model = model.to('cuda:1')
+    model = AutoEncoder(hyps['is'], hyps['os'], hidden_dim=hyps['hd'], mode=mode)
+    model = model.to('cuda:0')
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
     trained_model = train_encoder(model, optimizer, criterion, epochs,
-                                  train_loader, hyps, device='cuda:1')
+                                  train_loader, hyps, device='cuda:0')
 
-    trained_model = ConvAutoEncoderShallow(69*69*3, mode='pnf')
+    trained_model = AutoEncoder(hyps['is'], hyps['os'], hidden_dim=hyps['hd'], mode=mode)
     trained_model.load_state_dict(torch.load(save_dir + '/mnsanitycheck-bs256-lr0.1.pt'))
-    trained_model.to('cuda:1')
+    trained_model.to('cuda:0')
 
     to_pil_image = transforms.ToPILImage()
 
@@ -135,7 +135,7 @@ if __name__ == '__main__':
         if counter >= gen_num:
             break
 
-        tensor = tensor.to('cuda:1')
+        tensor = tensor.to('cuda:0')
         reconst_tensor = trained_model(tensor)
         # ensure the directories exist
         create_dir(dest)
@@ -145,7 +145,6 @@ if __name__ == '__main__':
         tensor = tensor.cpu()[seed]
         reconst_tensor = reconst_tensor.cpu()[seed]
 
-        print(f'-----------> {tensor.shape} -----> {type(tensor)}')
         real_img = to_pil_image(tensor)
         pred_img = to_pil_image(reconst_tensor)
 
