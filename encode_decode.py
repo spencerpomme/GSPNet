@@ -335,6 +335,6 @@ if __name__ == '__main__':
 
     mode = 'pnf'
     data_path = f'data/{datasets[mode+"1715"]}/tensors'
-    model_path = 'trained_models/mnSparseConvAutoEncoder-mdod-hd1024-bs1024-lr0.1.pt'
+    model_path = 'trained_models/mnConvAutoEncoderShallow-os14283-mdpnf-bs1024-lr0.1.pt'
     dest_path = 'autoencoder_test'
     run(model_path, data_path, dest_path, 8, mode, 'cuda:0')
