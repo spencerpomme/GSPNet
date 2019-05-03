@@ -733,6 +733,59 @@ class ConvAutoEncoderShallow(nn.Module):
         self.output_size = output_size
         self.chan = 3
         self.batch_norm = batch_norm
+        if mode == 'od':
+            self.chan = 1
+        elif mode == 'pnf':
+            self.chan = 3
+        # define encode and decode layers
+        self.conv1 = nn.Conv2d(self.chan, 16, 9, stride=2)
+        self.conv2 = nn.Conv2d(16, 4, 3, stride=2)
+        self.t_conv2 = nn.ConvTranspose2d(4, 16, 3, stride=2)
+        self.t_conv1 = nn.ConvTranspose2d(16, self.chan, 9, stride=2)
+
+    def forward(self, x):
+        '''
+        Pass tensor into the encoder and get it out from the decoder.
+
+        Args:
+            x:      input state vector (flattened)
+        Returns:
+            out:    output of current time step
+        '''
+        batch_size = x.size(0)
+        x = F.relu(self.conv1(x))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.t_conv2(x))
+        out = self.t_conv1(x)
+
+        # reshape to be batch_size first
+        out = out.view(batch_size, self.chan, 69, 69)
+
+        return out
+
+
+# A garbage param setting...
+class ConvAutoEncoder(nn.Module):
+    '''
+    A CNN autoencoder model, without any preprocessing to the inputs.
+    '''
+
+    def __init__(self, output_size, mode='pnf', batch_norm=False):
+        '''
+        Auto encoder initialization.
+
+        Args:
+            input_size:     dimention of state vector
+            output_size:    the same shape of input_size
+            mode:           either `od`(greyscale) or `pnf`(rgb)
+            train_on_gpu:   whether use GPU or not
+            device:         where to put the model
+        '''
+        super(ConvAutoEncoder, self).__init__()
+        self.is_conv = True
+        self.output_size = output_size
+        self.chan = 3
+        self.batch_norm = batch_norm
 
         # define encode and decode layers
         if mode == 'od':
@@ -765,52 +818,6 @@ class ConvAutoEncoderShallow(nn.Module):
 
         # reshape to be batch_size first
         out = out.view(batch_size, self.chan, 69, 69)
-
-        return out
-
-
-# A garbage param setting...
-class ConvAutoEncoder(nn.Module):
-    '''
-    A CNN autoencoder model, without any preprocessing to the inputs.
-    '''
-
-    def __init__(self, output_size, mode='pnf'):
-        '''
-        Auto encoder initialization.
-
-        Args:
-            output_size:    the same shape of input_size
-            mode:           either `od`(greyscale) or `pnf`(rgb)
-        '''
-        super(ConvAutoEncoder, self).__init__()
-        self.is_conv = True
-        self.output_size = output_size
-
-        # define encode and decode layers
-        if mode == 'od':
-            self.conv1 = nn.Conv2d(1, 16, 7, stride=2)             # od mode
-            self.t_conv1 = nn.ConvTranspose2d(16, 1, 7, stride=2)  # pnf mode
-        elif mode == 'pnf':
-            self.conv1 = nn.Conv2d(3, 16, 7, stride=2)             # od mode
-            self.t_conv1 = nn.ConvTranspose2d(16, 3, 7, stride=2)  # pnf mode
-
-        self.conv2 = nn.Conv2d(16, 4, 4, stride=2, padding=1)
-        self.conv3 = nn.Conv2d(4, 2, 4, stride=2, padding=1)
-        self.t_conv3 = nn.ConvTranspose2d(2, 4, 2, stride=2)
-        self.t_conv2 = nn.ConvTranspose2d(4, 16, 2, stride=2)
-
-    def forward(self, x):
-        '''
-        Pass tensor into the encoder and get it out from the decoder.
-        '''
-        batch_size = x.size(0)
-        x = F.relu(self.conv1(x))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = F.relu(self.t_conv3(x))
-        x = F.relu(self.t_conv2(x))
-        out = self.t_conv1(x)
 
         return out
 

@@ -69,19 +69,20 @@ def shrink_large_img(img_path):
 
 if __name__ == '__main__':
     # Hyperparameters:
+    chan = 3
     batch_size = 256
     num_workers = 0
-    learning_rate = 0.5
-    epochs = 300
+    learning_rate = 0.1
+    epochs = 100
     mode = 'pnf'
     save_dir = 'trained_models'
     dest = 'autoencoder_test/sanitycheck'
 
     hyps = {
-        'is': 69*69*3,
-        'os': 69*69*3,
+        'is': 69*69*chan,
+        'os': 69*69*chan,
         'mn': 'sanitycheck',
-        'hd': 8192,
+        'hd': 121,
         'bs': batch_size,
         'lr': learning_rate,
         'md': mode
@@ -89,14 +90,16 @@ if __name__ == '__main__':
 
     # training data transforms
     t = transforms.Compose([transforms.Resize(81), transforms.CenterCrop(69),
-                            transforms.ToTensor(),
-                            transforms.Normalize([0.485, 0.456, 0.406],
-                                                 [0.229, 0.224, 0.225])
+                            transforms.ToTensor()
+                            # transforms.Normalize([0.485, 0.456, 0.406],
+                            #                      [0.229, 0.224, 0.225])
                             ])
+
+    # data = datasets.MNIST(
+    #     'data/sanity_check/MNIST', train=True, transform=t, download=True)
 
     data = datasets.CIFAR10(
         'data/sanity_check/cifar10', train=True, transform=t, download=True)
-
     # split dataset for training and validation
     num_train = len(data)
     indices = list(range(num_train))
@@ -112,17 +115,17 @@ if __name__ == '__main__':
     valid_loader = DataLoader(data, sampler=valid_sampler,
                               batch_size=batch_size, num_workers=0, drop_last=True)
 
-    model = SparseConvAutoEncoder(hidden_dim=hyps['hd'], mode=mode)
+    model = ConvAutoEncoder(hyps['os'], mode=mode)
     model = model.to('cuda:0')
 
     optimizer = optim.SGD(model.parameters(), lr=learning_rate)
     criterion = nn.MSELoss()
 
-    trained_model = train_encoder(model, optimizer, criterion, epochs,
-                                  train_loader, hyps, device='cuda:0')
+    # trained_model = train_encoder(model, optimizer, criterion, epochs,
+    #                               train_loader, hyps, device='cuda:0')
 
-    trained_model = SparseConvAutoEncoder(hidden_dim=hyps['hd'], mode=mode)
-    trained_model.load_state_dict(torch.load(save_dir + '/mnsanitycheck-bs256-lr0.1.pt'))
+    trained_model = ConvAutoEncoder(hyps['os'], mode=mode)
+    trained_model.load_state_dict(torch.load(save_dir + f'/mnsanitycheck-bs{hyps["bs"]}-lr{hyps["lr"]}.pt'))
     trained_model.to('cuda:0')
 
     to_pil_image = transforms.ToPILImage()

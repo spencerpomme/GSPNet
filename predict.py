@@ -301,7 +301,7 @@ def run(model_path, data_path, dest_path, size, device):
 
 if __name__ == '__main__':
 
-    model_path = 'trained_models/mnVanillaStateGRU-is14283-os14283-sl4-bs8-hd1024-lr0.001-nl2-dp0.3.pt'
+    model_path = 'trained_models/mnVanillaLSTM-os14283-is14283-hd256-nl2-dp0.5-sl4-bs64-lr0.01.pt'
     data_path = 'data/2018_15min/tensors'
     dest_path = 'future_states'
     run(model_path, data_path, dest_path, 14, 'cuda:1')
